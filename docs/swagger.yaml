@@ -1,0 +1,1376 @@
+basePath: /api/v1
+definitions:
+  github_com_eleven-am_voice-backend_internal_dto.APIKeyListResponse:
+    properties:
+      api_keys:
+        items:
+          $ref: '#/definitions/github_com_eleven-am_voice-backend_internal_dto.APIKeyResponse'
+        type: array
+    type: object
+  github_com_eleven-am_voice-backend_internal_dto.APIKeyResponse:
+    properties:
+      created_at:
+        example: "2024-01-15T10:30:00Z"
+        type: string
+      expires_at:
+        example: "2024-12-31T23:59:59Z"
+        type: string
+      id:
+        example: key_abc123
+        type: string
+      last_used_at:
+        example: "2024-01-20T15:45:00Z"
+        type: string
+      name:
+        example: Production Key
+        type: string
+      prefix:
+        example: sk-voice-abc
+        type: string
+    type: object
+  github_com_eleven-am_voice-backend_internal_dto.AgentListResponse:
+    properties:
+      agents:
+        items:
+          $ref: '#/definitions/github_com_eleven-am_voice-backend_internal_dto.AgentResponse'
+        type: array
+    type: object
+  github_com_eleven-am_voice-backend_internal_dto.AgentResponse:
+    properties:
+      active_installs:
+        example: 500
+        type: integer
+      avg_rating:
+        example: 4.5
+        type: number
+      capabilities:
+        example:
+        - search
+        - weather
+        items:
+          type: string
+        type: array
+      category:
+        example: productivity
+        type: string
+      created_at:
+        example: "2024-01-15T10:30:00Z"
+        type: string
+      description:
+        example: A helpful voice assistant
+        type: string
+      developer_id:
+        example: usr_xyz789
+        type: string
+      id:
+        example: agt_abc123
+        type: string
+      is_public:
+        example: true
+        type: boolean
+      is_verified:
+        example: false
+        type: boolean
+      keywords:
+        example:
+        - helpful
+        - assistant
+        items:
+          type: string
+        type: array
+      logo_url:
+        example: https://example.com/logo.png
+        type: string
+      name:
+        example: My Voice Agent
+        type: string
+      total_installs:
+        example: 1000
+        type: integer
+      total_reviews:
+        example: 100
+        type: integer
+      updated_at:
+        example: "2024-01-20T15:45:00Z"
+        type: string
+    type: object
+  github_com_eleven-am_voice-backend_internal_dto.CreateAPIKeyRequest:
+    properties:
+      expires_in_days:
+        example: 90
+        type: integer
+      name:
+        example: Production Key
+        type: string
+    type: object
+  github_com_eleven-am_voice-backend_internal_dto.CreateAPIKeyResponse:
+    properties:
+      created_at:
+        example: "2024-01-15T10:30:00Z"
+        type: string
+      expires_at:
+        example: "2024-12-31T23:59:59Z"
+        type: string
+      id:
+        example: key_abc123
+        type: string
+      last_used_at:
+        type: string
+      name:
+        example: Production Key
+        type: string
+      prefix:
+        example: sk-voice-abc
+        type: string
+      secret:
+        example: sk-voice-abcXXXXXXXXXXXXXXXXXXXXX
+        type: string
+    type: object
+  github_com_eleven-am_voice-backend_internal_dto.CreateAgentRequest:
+    properties:
+      capabilities:
+        example:
+        - search
+        - weather
+        - calendar
+        items:
+          type: string
+        type: array
+      category:
+        enum:
+        - productivity
+        - education
+        - entertainment
+        - lifestyle
+        - utility
+        - social
+        - finance
+        - health
+        - news
+        - assistant
+        example: productivity
+        type: string
+      description:
+        example: A helpful voice assistant
+        type: string
+      keywords:
+        example:
+        - helpful
+        - assistant
+        - voice
+        items:
+          type: string
+        type: array
+      logo_url:
+        example: https://example.com/logo.png
+        type: string
+      name:
+        example: My Voice Agent
+        type: string
+    type: object
+  github_com_eleven-am_voice-backend_internal_dto.CreateReviewRequest:
+    properties:
+      body:
+        example: Great agent, very helpful!
+        type: string
+      rating:
+        example: 5
+        maximum: 5
+        minimum: 1
+        type: integer
+    type: object
+  github_com_eleven-am_voice-backend_internal_dto.InstallRequest:
+    properties:
+      scopes:
+        example:
+        - profile
+        - email
+        - realtime
+        items:
+          type: string
+        type: array
+    type: object
+  github_com_eleven-am_voice-backend_internal_dto.InstalledAgentResponse:
+    properties:
+      agent_id:
+        example: agt_abc123
+        type: string
+      description:
+        example: A helpful voice assistant
+        type: string
+      granted_scopes:
+        example:
+        - profile
+        - email
+        items:
+          type: string
+        type: array
+      installed_at:
+        example: "2024-01-15T10:30:00Z"
+        type: string
+      logo_url:
+        example: https://example.com/logo.png
+        type: string
+      name:
+        example: My Voice Agent
+        type: string
+    type: object
+  github_com_eleven-am_voice-backend_internal_dto.InstalledAgentsResponse:
+    properties:
+      agents:
+        items:
+          $ref: '#/definitions/github_com_eleven-am_voice-backend_internal_dto.InstalledAgentResponse'
+        type: array
+    type: object
+  github_com_eleven-am_voice-backend_internal_dto.MarketplaceAgentResponse:
+    properties:
+      avg_rating:
+        example: 4.8
+        type: number
+      category:
+        example: productivity
+        type: string
+      description:
+        example: A helpful voice assistant
+        type: string
+      id:
+        example: agt_abc123
+        type: string
+      is_verified:
+        example: true
+        type: boolean
+      keywords:
+        example:
+        - helpful
+        - assistant
+        items:
+          type: string
+        type: array
+      logo_url:
+        example: https://example.com/logo.png
+        type: string
+      name:
+        example: My Voice Agent
+        type: string
+      total_installs:
+        example: 5000
+        type: integer
+      total_reviews:
+        example: 200
+        type: integer
+    type: object
+  github_com_eleven-am_voice-backend_internal_dto.MarketplaceListResponse:
+    properties:
+      agents:
+        items:
+          $ref: '#/definitions/github_com_eleven-am_voice-backend_internal_dto.MarketplaceAgentResponse'
+        type: array
+      limit:
+        example: 20
+        type: integer
+      offset:
+        example: 0
+        type: integer
+    type: object
+  github_com_eleven-am_voice-backend_internal_dto.MarketplaceSearchResponse:
+    properties:
+      agents:
+        items:
+          $ref: '#/definitions/github_com_eleven-am_voice-backend_internal_dto.MarketplaceAgentResponse'
+        type: array
+    type: object
+  github_com_eleven-am_voice-backend_internal_dto.MeResponse:
+    properties:
+      avatar_url:
+        example: https://example.com/avatar.png
+        type: string
+      email:
+        example: user@example.com
+        type: string
+      id:
+        example: usr_abc123
+        type: string
+      is_developer:
+        example: false
+        type: boolean
+      name:
+        example: John Doe
+        type: string
+    type: object
+  github_com_eleven-am_voice-backend_internal_dto.MetricsListResponse:
+    properties:
+      agent_id:
+        example: agt_abc123
+        type: string
+      hours:
+        example: 24
+        type: integer
+      metrics:
+        items:
+          $ref: '#/definitions/github_com_eleven-am_voice-backend_internal_dto.MetricsResponse'
+        type: array
+    type: object
+  github_com_eleven-am_voice-backend_internal_dto.MetricsResponse:
+    properties:
+      agent_id:
+        example: agt_abc123
+        type: string
+      avg_latency_ms:
+        example: 150
+        type: integer
+      date:
+        example: "2024-01-15"
+        type: string
+      error_count:
+        example: 5
+        type: integer
+      hour:
+        example: 14
+        type: integer
+      new_installs:
+        example: 10
+        type: integer
+      responses:
+        example: 450
+        type: integer
+      sessions:
+        example: 100
+        type: integer
+      uninstalls:
+        example: 2
+        type: integer
+      unique_users:
+        example: 25
+        type: integer
+      utterances:
+        example: 500
+        type: integer
+    type: object
+  github_com_eleven-am_voice-backend_internal_dto.ReplyToReviewRequest:
+    properties:
+      reply:
+        example: Thank you for your feedback!
+        type: string
+    type: object
+  github_com_eleven-am_voice-backend_internal_dto.ReviewListResponse:
+    properties:
+      limit:
+        example: 20
+        type: integer
+      offset:
+        example: 0
+        type: integer
+      reviews:
+        items:
+          $ref: '#/definitions/github_com_eleven-am_voice-backend_internal_dto.ReviewResponse'
+        type: array
+    type: object
+  github_com_eleven-am_voice-backend_internal_dto.ReviewResponse:
+    properties:
+      body:
+        example: Great agent!
+        type: string
+      created_at:
+        example: "2024-01-15T10:30:00Z"
+        type: string
+      developer_reply:
+        example: Thank you!
+        type: string
+      id:
+        example: rev_abc123
+        type: string
+      rating:
+        example: 5
+        type: integer
+      replied_at:
+        example: "2024-01-16T12:00:00Z"
+        type: string
+      user_id:
+        example: usr_xyz789
+        type: string
+    type: object
+  github_com_eleven-am_voice-backend_internal_dto.SummaryResponse:
+    properties:
+      agent_id:
+        example: agt_abc123
+        type: string
+      avg_latency_ms:
+        example: 145
+        type: integer
+      error_rate:
+        example: 1.5
+        type: number
+      net_installs:
+        example: 50
+        type: integer
+      period:
+        example: 7d
+        type: string
+      total_responses:
+        example: 4500
+        type: integer
+      total_sessions:
+        example: 1000
+        type: integer
+      total_utterances:
+        example: 5000
+        type: integer
+      unique_users:
+        example: 200
+        type: integer
+    type: object
+  github_com_eleven-am_voice-backend_internal_dto.UpdateAgentRequest:
+    properties:
+      capabilities:
+        example:
+        - new
+        - capabilities
+        items:
+          type: string
+        type: array
+      category:
+        enum:
+        - productivity
+        - education
+        - entertainment
+        - lifestyle
+        - utility
+        - social
+        - finance
+        - health
+        - news
+        - assistant
+        example: education
+        type: string
+      description:
+        example: Updated description
+        type: string
+      keywords:
+        example:
+        - updated
+        - keywords
+        items:
+          type: string
+        type: array
+      logo_url:
+        example: https://example.com/new-logo.png
+        type: string
+      name:
+        example: Updated Agent Name
+        type: string
+    type: object
+  github_com_eleven-am_voice-backend_internal_dto.UpdateScopesRequest:
+    properties:
+      scopes:
+        example:
+        - profile
+        - email
+        items:
+          type: string
+        type: array
+    type: object
+  github_com_eleven-am_voice-backend_internal_shared.APIError:
+    properties:
+      code:
+        example: invalid_request
+        type: string
+      details:
+        type: object
+      message:
+        example: Invalid request body
+        type: string
+    type: object
+host: api.voice.example.com
+info:
+  contact: {}
+  description: API server for voice agent platform
+  title: Voice Backend API
+  version: 1.0.0
+paths:
+  /agents:
+    get:
+      description: Returns all agents owned by the authenticated developer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/github_com_eleven-am_voice-backend_internal_dto.AgentListResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/github_com_eleven-am_voice-backend_internal_shared.APIError'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/github_com_eleven-am_voice-backend_internal_shared.APIError'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/github_com_eleven-am_voice-backend_internal_shared.APIError'
+      summary: List developer's agents
+      tags:
+      - agents
+    post:
+      consumes:
+      - application/json
+      description: Creates a new agent for the authenticated developer
+      parameters:
+      - description: Agent details
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/github_com_eleven-am_voice-backend_internal_dto.CreateAgentRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/github_com_eleven-am_voice-backend_internal_dto.AgentResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/github_com_eleven-am_voice-backend_internal_shared.APIError'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/github_com_eleven-am_voice-backend_internal_shared.APIError'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/github_com_eleven-am_voice-backend_internal_shared.APIError'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/github_com_eleven-am_voice-backend_internal_shared.APIError'
+      summary: Create a new agent
+      tags:
+      - agents
+  /agents/{id}:
+    delete:
+      description: Deletes an agent owned by the authenticated developer
+      parameters:
+      - description: Agent ID
+        in: path
+        name: id
+        required: true
+        type: string
+      responses:
+        "204":
+          description: No Content
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/github_com_eleven-am_voice-backend_internal_shared.APIError'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/github_com_eleven-am_voice-backend_internal_shared.APIError'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/github_com_eleven-am_voice-backend_internal_shared.APIError'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/github_com_eleven-am_voice-backend_internal_shared.APIError'
+      summary: Delete an agent
+      tags:
+      - agents
+    get:
+      description: Returns a specific agent owned by the authenticated developer
+      parameters:
+      - description: Agent ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/github_com_eleven-am_voice-backend_internal_dto.AgentResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/github_com_eleven-am_voice-backend_internal_shared.APIError'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/github_com_eleven-am_voice-backend_internal_shared.APIError'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/github_com_eleven-am_voice-backend_internal_shared.APIError'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/github_com_eleven-am_voice-backend_internal_shared.APIError'
+      summary: Get an agent
+      tags:
+      - agents
+    put:
+      consumes:
+      - application/json
+      description: Updates an existing agent owned by the authenticated developer
+      parameters:
+      - description: Agent ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Agent update details
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/github_com_eleven-am_voice-backend_internal_dto.UpdateAgentRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/github_com_eleven-am_voice-backend_internal_dto.AgentResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/github_com_eleven-am_voice-backend_internal_shared.APIError'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/github_com_eleven-am_voice-backend_internal_shared.APIError'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/github_com_eleven-am_voice-backend_internal_shared.APIError'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/github_com_eleven-am_voice-backend_internal_shared.APIError'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/github_com_eleven-am_voice-backend_internal_shared.APIError'
+      summary: Update an agent
+      tags:
+      - agents
+  /agents/{id}/publish:
+    post:
+      description: Makes an agent publicly available in the marketplace
+      parameters:
+      - description: Agent ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/github_com_eleven-am_voice-backend_internal_dto.AgentResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/github_com_eleven-am_voice-backend_internal_shared.APIError'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/github_com_eleven-am_voice-backend_internal_shared.APIError'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/github_com_eleven-am_voice-backend_internal_shared.APIError'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/github_com_eleven-am_voice-backend_internal_shared.APIError'
+      summary: Publish an agent
+      tags:
+      - agents
+  /agents/{id}/reviews/{review_id}/reply:
+    post:
+      consumes:
+      - application/json
+      description: Adds a developer reply to a review on their agent
+      parameters:
+      - description: Agent ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Review ID
+        in: path
+        name: review_id
+        required: true
+        type: string
+      - description: Reply content
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/github_com_eleven-am_voice-backend_internal_dto.ReplyToReviewRequest'
+      responses:
+        "204":
+          description: No Content
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/github_com_eleven-am_voice-backend_internal_shared.APIError'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/github_com_eleven-am_voice-backend_internal_shared.APIError'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/github_com_eleven-am_voice-backend_internal_shared.APIError'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/github_com_eleven-am_voice-backend_internal_shared.APIError'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/github_com_eleven-am_voice-backend_internal_shared.APIError'
+      summary: Reply to a review
+      tags:
+      - agents
+  /apikeys:
+    get:
+      description: Returns all API keys owned by the authenticated developer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/github_com_eleven-am_voice-backend_internal_dto.APIKeyListResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/github_com_eleven-am_voice-backend_internal_shared.APIError'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/github_com_eleven-am_voice-backend_internal_shared.APIError'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/github_com_eleven-am_voice-backend_internal_shared.APIError'
+      summary: List API keys
+      tags:
+      - apikeys
+    post:
+      consumes:
+      - application/json
+      description: Creates a new API key for the authenticated developer
+      parameters:
+      - description: API key details
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/github_com_eleven-am_voice-backend_internal_dto.CreateAPIKeyRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/github_com_eleven-am_voice-backend_internal_dto.CreateAPIKeyResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/github_com_eleven-am_voice-backend_internal_shared.APIError'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/github_com_eleven-am_voice-backend_internal_shared.APIError'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/github_com_eleven-am_voice-backend_internal_shared.APIError'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/github_com_eleven-am_voice-backend_internal_shared.APIError'
+      summary: Create an API key
+      tags:
+      - apikeys
+  /apikeys/{id}:
+    delete:
+      description: Deletes an API key owned by the authenticated developer
+      parameters:
+      - description: API Key ID
+        in: path
+        name: id
+        required: true
+        type: string
+      responses:
+        "204":
+          description: No Content
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/github_com_eleven-am_voice-backend_internal_shared.APIError'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/github_com_eleven-am_voice-backend_internal_shared.APIError'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/github_com_eleven-am_voice-backend_internal_shared.APIError'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/github_com_eleven-am_voice-backend_internal_shared.APIError'
+      summary: Delete an API key
+      tags:
+      - apikeys
+  /auth/github:
+    get:
+      description: Redirects the user to GitHub OAuth consent page
+      parameters:
+      - description: URL to redirect after successful login
+        in: query
+        name: redirect_uri
+        type: string
+      responses:
+        "307":
+          description: Redirect to GitHub OAuth
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/github_com_eleven-am_voice-backend_internal_shared.APIError'
+      summary: Initiate GitHub OAuth login
+      tags:
+      - auth
+  /auth/github/callback:
+    get:
+      description: Handles the callback from GitHub OAuth and creates user session
+      parameters:
+      - description: OAuth state parameter
+        in: query
+        name: state
+        required: true
+        type: string
+      - description: Authorization code
+        in: query
+        name: code
+        required: true
+        type: string
+      responses:
+        "307":
+          description: Redirect to redirect_uri or /
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/github_com_eleven-am_voice-backend_internal_shared.APIError'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/github_com_eleven-am_voice-backend_internal_shared.APIError'
+      summary: GitHub OAuth callback
+      tags:
+      - auth
+  /auth/google:
+    get:
+      description: Redirects the user to Google OAuth consent page
+      parameters:
+      - description: URL to redirect after successful login
+        in: query
+        name: redirect_uri
+        type: string
+      responses:
+        "307":
+          description: Redirect to Google OAuth
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/github_com_eleven-am_voice-backend_internal_shared.APIError'
+      summary: Initiate Google OAuth login
+      tags:
+      - auth
+  /auth/google/callback:
+    get:
+      description: Handles the callback from Google OAuth and creates user session
+      parameters:
+      - description: OAuth state parameter
+        in: query
+        name: state
+        required: true
+        type: string
+      - description: Authorization code
+        in: query
+        name: code
+        required: true
+        type: string
+      responses:
+        "307":
+          description: Redirect to redirect_uri or /
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/github_com_eleven-am_voice-backend_internal_shared.APIError'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/github_com_eleven-am_voice-backend_internal_shared.APIError'
+      summary: Google OAuth callback
+      tags:
+      - auth
+  /auth/logout:
+    post:
+      description: Clears the user session and logs out
+      responses:
+        "204":
+          description: No Content
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/github_com_eleven-am_voice-backend_internal_shared.APIError'
+      summary: Logout
+      tags:
+      - auth
+  /auth/me:
+    get:
+      description: Returns the currently authenticated user's profile
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/github_com_eleven-am_voice-backend_internal_dto.MeResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/github_com_eleven-am_voice-backend_internal_shared.APIError'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/github_com_eleven-am_voice-backend_internal_shared.APIError'
+      summary: Get current user
+      tags:
+      - auth
+  /auth/me/developer:
+    post:
+      description: Upgrades the current user to developer status
+      responses:
+        "204":
+          description: No Content
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/github_com_eleven-am_voice-backend_internal_shared.APIError'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/github_com_eleven-am_voice-backend_internal_shared.APIError'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/github_com_eleven-am_voice-backend_internal_shared.APIError'
+      summary: Become a developer
+      tags:
+      - auth
+  /me/agents:
+    get:
+      description: Returns all agents installed by the authenticated user
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/github_com_eleven-am_voice-backend_internal_dto.InstalledAgentsResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/github_com_eleven-am_voice-backend_internal_shared.APIError'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/github_com_eleven-am_voice-backend_internal_shared.APIError'
+      summary: List installed agents
+      tags:
+      - installs
+  /me/agents/{id}:
+    delete:
+      description: Removes an installed agent from the user's account
+      parameters:
+      - description: Agent ID
+        in: path
+        name: id
+        required: true
+        type: string
+      responses:
+        "204":
+          description: No Content
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/github_com_eleven-am_voice-backend_internal_shared.APIError'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/github_com_eleven-am_voice-backend_internal_shared.APIError'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/github_com_eleven-am_voice-backend_internal_shared.APIError'
+      summary: Uninstall an agent
+      tags:
+      - installs
+  /me/agents/{id}/install:
+    post:
+      consumes:
+      - application/json
+      description: Installs a public agent for the authenticated user
+      parameters:
+      - description: Agent ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Installation options
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/github_com_eleven-am_voice-backend_internal_dto.InstallRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/github_com_eleven-am_voice-backend_internal_dto.InstalledAgentResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/github_com_eleven-am_voice-backend_internal_shared.APIError'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/github_com_eleven-am_voice-backend_internal_shared.APIError'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/github_com_eleven-am_voice-backend_internal_shared.APIError'
+        "409":
+          description: Conflict
+          schema:
+            $ref: '#/definitions/github_com_eleven-am_voice-backend_internal_shared.APIError'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/github_com_eleven-am_voice-backend_internal_shared.APIError'
+      summary: Install an agent
+      tags:
+      - installs
+  /me/agents/{id}/scopes:
+    put:
+      consumes:
+      - application/json
+      description: Updates the granted scopes for an installed agent
+      parameters:
+      - description: Agent ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: New scopes
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/github_com_eleven-am_voice-backend_internal_dto.UpdateScopesRequest'
+      responses:
+        "204":
+          description: No Content
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/github_com_eleven-am_voice-backend_internal_shared.APIError'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/github_com_eleven-am_voice-backend_internal_shared.APIError'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/github_com_eleven-am_voice-backend_internal_shared.APIError'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/github_com_eleven-am_voice-backend_internal_shared.APIError'
+      summary: Update agent scopes
+      tags:
+      - installs
+  /metrics/agents/{id}:
+    get:
+      description: Returns hourly metrics for an agent owned by the developer
+      parameters:
+      - description: Agent ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Number of hours (default 24, max 168)
+        in: query
+        name: hours
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/github_com_eleven-am_voice-backend_internal_dto.MetricsListResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/github_com_eleven-am_voice-backend_internal_shared.APIError'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/github_com_eleven-am_voice-backend_internal_shared.APIError'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/github_com_eleven-am_voice-backend_internal_shared.APIError'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/github_com_eleven-am_voice-backend_internal_shared.APIError'
+      summary: Get agent metrics
+      tags:
+      - metrics
+  /metrics/agents/{id}/summary:
+    get:
+      description: Returns aggregated 7-day metrics summary for an agent
+      parameters:
+      - description: Agent ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/github_com_eleven-am_voice-backend_internal_dto.SummaryResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/github_com_eleven-am_voice-backend_internal_shared.APIError'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/github_com_eleven-am_voice-backend_internal_shared.APIError'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/github_com_eleven-am_voice-backend_internal_shared.APIError'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/github_com_eleven-am_voice-backend_internal_shared.APIError'
+      summary: Get agent metrics summary
+      tags:
+      - metrics
+  /store/agents:
+    get:
+      description: Returns paginated list of public agents in the marketplace
+      parameters:
+      - description: Number of results (default 20, max 100)
+        in: query
+        name: limit
+        type: integer
+      - description: Offset for pagination
+        in: query
+        name: offset
+        type: integer
+      - description: Filter by category
+        in: query
+        name: category
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/github_com_eleven-am_voice-backend_internal_dto.MarketplaceListResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/github_com_eleven-am_voice-backend_internal_shared.APIError'
+      summary: List public agents
+      tags:
+      - marketplace
+  /store/agents/{id}:
+    get:
+      description: Returns details of a public agent by ID
+      parameters:
+      - description: Agent ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/github_com_eleven-am_voice-backend_internal_dto.MarketplaceAgentResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/github_com_eleven-am_voice-backend_internal_shared.APIError'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/github_com_eleven-am_voice-backend_internal_shared.APIError'
+      summary: Get a public agent
+      tags:
+      - marketplace
+  /store/agents/{id}/reviews:
+    get:
+      description: Returns paginated list of reviews for a public agent
+      parameters:
+      - description: Agent ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Number of results (default 20, max 100)
+        in: query
+        name: limit
+        type: integer
+      - description: Offset for pagination
+        in: query
+        name: offset
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/github_com_eleven-am_voice-backend_internal_dto.ReviewListResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/github_com_eleven-am_voice-backend_internal_shared.APIError'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/github_com_eleven-am_voice-backend_internal_shared.APIError'
+      summary: Get agent reviews
+      tags:
+      - marketplace
+    post:
+      consumes:
+      - application/json
+      description: Creates a review for an installed agent
+      parameters:
+      - description: Agent ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Review content
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/github_com_eleven-am_voice-backend_internal_dto.CreateReviewRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/github_com_eleven-am_voice-backend_internal_dto.ReviewResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/github_com_eleven-am_voice-backend_internal_shared.APIError'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/github_com_eleven-am_voice-backend_internal_shared.APIError'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/github_com_eleven-am_voice-backend_internal_shared.APIError'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/github_com_eleven-am_voice-backend_internal_shared.APIError'
+        "409":
+          description: Conflict
+          schema:
+            $ref: '#/definitions/github_com_eleven-am_voice-backend_internal_shared.APIError'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/github_com_eleven-am_voice-backend_internal_shared.APIError'
+      summary: Create a review
+      tags:
+      - marketplace
+  /store/agents/search:
+    get:
+      description: Searches public agents using semantic search
+      parameters:
+      - description: Search query
+        in: query
+        name: q
+        required: true
+        type: string
+      - description: Number of results (default 10, max 50)
+        in: query
+        name: limit
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/github_com_eleven-am_voice-backend_internal_dto.MarketplaceSearchResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/github_com_eleven-am_voice-backend_internal_shared.APIError'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/github_com_eleven-am_voice-backend_internal_shared.APIError'
+      summary: Search agents
+      tags:
+      - marketplace
+securityDefinitions:
+  APIKeyAuth:
+    in: header
+    name: X-API-Key
+    type: apiKey
+  SessionAuth:
+    in: cookie
+    name: session
+    type: apiKey
+swagger: "2.0"
