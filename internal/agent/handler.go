@@ -96,6 +96,7 @@ func agentToResponse(a *Agent) dto.AgentResponse {
 // @Failure      401  {object}  shared.APIError
 // @Failure      403  {object}  shared.APIError
 // @Failure      500  {object}  shared.APIError
+// @Security     SessionAuth
 // @Router       /agents [get]
 func (h *Handler) List(c echo.Context) error {
 	developerID, err := h.requireDeveloper(c)
@@ -129,6 +130,7 @@ func (h *Handler) List(c echo.Context) error {
 // @Failure      401      {object}  shared.APIError
 // @Failure      403      {object}  shared.APIError
 // @Failure      500      {object}  shared.APIError
+// @Security     SessionAuth
 // @Router       /agents [post]
 func (h *Handler) Create(c echo.Context) error {
 	developerID, err := h.requireDeveloper(c)
@@ -183,6 +185,7 @@ func (h *Handler) Create(c echo.Context) error {
 // @Failure      403  {object}  shared.APIError
 // @Failure      404  {object}  shared.APIError
 // @Failure      500  {object}  shared.APIError
+// @Security     SessionAuth
 // @Router       /agents/{id} [get]
 func (h *Handler) Get(c echo.Context) error {
 	developerID, err := h.requireDeveloper(c)
@@ -220,6 +223,7 @@ func (h *Handler) Get(c echo.Context) error {
 // @Failure      403      {object}  shared.APIError
 // @Failure      404      {object}  shared.APIError
 // @Failure      500      {object}  shared.APIError
+// @Security     SessionAuth
 // @Router       /agents/{id} [put]
 func (h *Handler) Update(c echo.Context) error {
 	developerID, err := h.requireDeveloper(c)
@@ -286,6 +290,7 @@ func (h *Handler) Update(c echo.Context) error {
 // @Failure      403  {object}  shared.APIError
 // @Failure      404  {object}  shared.APIError
 // @Failure      500  {object}  shared.APIError
+// @Security     SessionAuth
 // @Router       /agents/{id} [delete]
 func (h *Handler) Delete(c echo.Context) error {
 	developerID, err := h.requireDeveloper(c)
@@ -329,6 +334,7 @@ func (h *Handler) Delete(c echo.Context) error {
 // @Failure      403  {object}  shared.APIError
 // @Failure      404  {object}  shared.APIError
 // @Failure      500  {object}  shared.APIError
+// @Security     SessionAuth
 // @Router       /agents/{id}/publish [post]
 func (h *Handler) Publish(c echo.Context) error {
 	developerID, err := h.requireDeveloper(c)
@@ -371,6 +377,7 @@ func (h *Handler) Publish(c echo.Context) error {
 // @Failure      403  {object}  shared.APIError
 // @Failure      404  {object}  shared.APIError
 // @Failure      500  {object}  shared.APIError
+// @Security     SessionAuth
 // @Router       /agents/{id}/reviews/{review_id}/reply [post]
 func (h *Handler) ReplyToReview(c echo.Context) error {
 	developerID, err := h.requireDeveloper(c)

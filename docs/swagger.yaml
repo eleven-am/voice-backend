@@ -509,6 +509,8 @@ paths:
           description: Internal Server Error
           schema:
             $ref: '#/definitions/github_com_eleven-am_voice-backend_internal_shared.APIError'
+      security:
+      - SessionAuth: []
       summary: List developer's agents
       tags:
       - agents
@@ -546,6 +548,8 @@ paths:
           description: Internal Server Error
           schema:
             $ref: '#/definitions/github_com_eleven-am_voice-backend_internal_shared.APIError'
+      security:
+      - SessionAuth: []
       summary: Create a new agent
       tags:
       - agents
@@ -577,6 +581,8 @@ paths:
           description: Internal Server Error
           schema:
             $ref: '#/definitions/github_com_eleven-am_voice-backend_internal_shared.APIError'
+      security:
+      - SessionAuth: []
       summary: Delete an agent
       tags:
       - agents
@@ -611,6 +617,8 @@ paths:
           description: Internal Server Error
           schema:
             $ref: '#/definitions/github_com_eleven-am_voice-backend_internal_shared.APIError'
+      security:
+      - SessionAuth: []
       summary: Get an agent
       tags:
       - agents
@@ -657,6 +665,8 @@ paths:
           description: Internal Server Error
           schema:
             $ref: '#/definitions/github_com_eleven-am_voice-backend_internal_shared.APIError'
+      security:
+      - SessionAuth: []
       summary: Update an agent
       tags:
       - agents
@@ -692,6 +702,8 @@ paths:
           description: Internal Server Error
           schema:
             $ref: '#/definitions/github_com_eleven-am_voice-backend_internal_shared.APIError'
+      security:
+      - SessionAuth: []
       summary: Publish an agent
       tags:
       - agents
@@ -740,6 +752,8 @@ paths:
           description: Internal Server Error
           schema:
             $ref: '#/definitions/github_com_eleven-am_voice-backend_internal_shared.APIError'
+      security:
+      - SessionAuth: []
       summary: Reply to a review
       tags:
       - agents
@@ -765,6 +779,8 @@ paths:
           description: Internal Server Error
           schema:
             $ref: '#/definitions/github_com_eleven-am_voice-backend_internal_shared.APIError'
+      security:
+      - SessionAuth: []
       summary: List API keys
       tags:
       - apikeys
@@ -802,6 +818,8 @@ paths:
           description: Internal Server Error
           schema:
             $ref: '#/definitions/github_com_eleven-am_voice-backend_internal_shared.APIError'
+      security:
+      - SessionAuth: []
       summary: Create an API key
       tags:
       - apikeys
@@ -833,6 +851,8 @@ paths:
           description: Internal Server Error
           schema:
             $ref: '#/definitions/github_com_eleven-am_voice-backend_internal_shared.APIError'
+      security:
+      - SessionAuth: []
       summary: Delete an API key
       tags:
       - apikeys
@@ -938,6 +958,8 @@ paths:
           description: Unauthorized
           schema:
             $ref: '#/definitions/github_com_eleven-am_voice-backend_internal_shared.APIError'
+      security:
+      - SessionAuth: []
       summary: Logout
       tags:
       - auth
@@ -959,6 +981,8 @@ paths:
           description: Not Found
           schema:
             $ref: '#/definitions/github_com_eleven-am_voice-backend_internal_shared.APIError'
+      security:
+      - SessionAuth: []
       summary: Get current user
       tags:
       - auth
@@ -980,6 +1004,8 @@ paths:
           description: Internal Server Error
           schema:
             $ref: '#/definitions/github_com_eleven-am_voice-backend_internal_shared.APIError'
+      security:
+      - SessionAuth: []
       summary: Become a developer
       tags:
       - auth
@@ -1001,6 +1027,8 @@ paths:
           description: Internal Server Error
           schema:
             $ref: '#/definitions/github_com_eleven-am_voice-backend_internal_shared.APIError'
+      security:
+      - SessionAuth: []
       summary: List installed agents
       tags:
       - installs
@@ -1028,6 +1056,8 @@ paths:
           description: Internal Server Error
           schema:
             $ref: '#/definitions/github_com_eleven-am_voice-backend_internal_shared.APIError'
+      security:
+      - SessionAuth: []
       summary: Uninstall an agent
       tags:
       - installs
@@ -1075,6 +1105,8 @@ paths:
           description: Internal Server Error
           schema:
             $ref: '#/definitions/github_com_eleven-am_voice-backend_internal_shared.APIError'
+      security:
+      - SessionAuth: []
       summary: Install an agent
       tags:
       - installs
@@ -1114,6 +1146,8 @@ paths:
           description: Internal Server Error
           schema:
             $ref: '#/definitions/github_com_eleven-am_voice-backend_internal_shared.APIError'
+      security:
+      - SessionAuth: []
       summary: Update agent scopes
       tags:
       - installs
@@ -1153,6 +1187,8 @@ paths:
           description: Internal Server Error
           schema:
             $ref: '#/definitions/github_com_eleven-am_voice-backend_internal_shared.APIError'
+      security:
+      - SessionAuth: []
       summary: Get agent metrics
       tags:
       - metrics
@@ -1188,6 +1224,8 @@ paths:
           description: Internal Server Error
           schema:
             $ref: '#/definitions/github_com_eleven-am_voice-backend_internal_shared.APIError'
+      security:
+      - SessionAuth: []
       summary: Get agent metrics summary
       tags:
       - metrics
@@ -1330,6 +1368,8 @@ paths:
           description: Internal Server Error
           schema:
             $ref: '#/definitions/github_com_eleven-am_voice-backend_internal_shared.APIError'
+      security:
+      - SessionAuth: []
       summary: Create a review
       tags:
       - marketplace

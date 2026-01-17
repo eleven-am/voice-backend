@@ -85,6 +85,7 @@ func keyToResponse(k *APIKey) dto.APIKeyResponse {
 // @Failure      401  {object}  shared.APIError
 // @Failure      403  {object}  shared.APIError
 // @Failure      500  {object}  shared.APIError
+// @Security     SessionAuth
 // @Router       /apikeys [get]
 func (h *Handler) List(c echo.Context) error {
 	userID, err := h.requireDeveloper(c)
@@ -118,6 +119,7 @@ func (h *Handler) List(c echo.Context) error {
 // @Failure      401      {object}  shared.APIError
 // @Failure      403      {object}  shared.APIError
 // @Failure      500      {object}  shared.APIError
+// @Security     SessionAuth
 // @Router       /apikeys [post]
 func (h *Handler) Create(c echo.Context) error {
 	userID, err := h.requireDeveloper(c)
@@ -173,6 +175,7 @@ func (h *Handler) Create(c echo.Context) error {
 // @Failure      403  {object}  shared.APIError
 // @Failure      404  {object}  shared.APIError
 // @Failure      500  {object}  shared.APIError
+// @Security     SessionAuth
 // @Router       /apikeys/{id} [delete]
 func (h *Handler) Delete(c echo.Context) error {
 	userID, err := h.requireDeveloper(c)

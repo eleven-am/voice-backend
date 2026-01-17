@@ -277,6 +277,7 @@ func (h *MarketplaceHandler) GetReviews(c echo.Context) error {
 // @Failure      404      {object}  shared.APIError
 // @Failure      409      {object}  shared.APIError
 // @Failure      500      {object}  shared.APIError
+// @Security     SessionAuth
 // @Router       /store/agents/{id}/reviews [post]
 func (h *MarketplaceHandler) CreateReview(c echo.Context) error {
 	userID, csrf, err := h.sessions.Get(c)

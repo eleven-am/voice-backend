@@ -11,6 +11,11 @@
     "paths": {
         "/agents": {
             "get": {
+                "security": [
+                    {
+                        "SessionAuth": []
+                    }
+                ],
                 "description": "Returns all agents owned by the authenticated developer",
                 "produces": [
                     "application/json"
@@ -47,6 +52,11 @@
                 }
             },
             "post": {
+                "security": [
+                    {
+                        "SessionAuth": []
+                    }
+                ],
                 "description": "Creates a new agent for the authenticated developer",
                 "consumes": [
                     "application/json"
@@ -105,6 +115,11 @@
         },
         "/agents/{id}": {
             "get": {
+                "security": [
+                    {
+                        "SessionAuth": []
+                    }
+                ],
                 "description": "Returns a specific agent owned by the authenticated developer",
                 "produces": [
                     "application/json"
@@ -156,6 +171,11 @@
                 }
             },
             "put": {
+                "security": [
+                    {
+                        "SessionAuth": []
+                    }
+                ],
                 "description": "Updates an existing agent owned by the authenticated developer",
                 "consumes": [
                     "application/json"
@@ -225,6 +245,11 @@
                 }
             },
             "delete": {
+                "security": [
+                    {
+                        "SessionAuth": []
+                    }
+                ],
                 "description": "Deletes an agent owned by the authenticated developer",
                 "tags": [
                     "agents"
@@ -272,6 +297,11 @@
         },
         "/agents/{id}/publish": {
             "post": {
+                "security": [
+                    {
+                        "SessionAuth": []
+                    }
+                ],
                 "description": "Makes an agent publicly available in the marketplace",
                 "produces": [
                     "application/json"
@@ -325,6 +355,11 @@
         },
         "/agents/{id}/reviews/{review_id}/reply": {
             "post": {
+                "security": [
+                    {
+                        "SessionAuth": []
+                    }
+                ],
                 "description": "Adds a developer reply to a review on their agent",
                 "consumes": [
                     "application/json"
@@ -397,6 +432,11 @@
         },
         "/apikeys": {
             "get": {
+                "security": [
+                    {
+                        "SessionAuth": []
+                    }
+                ],
                 "description": "Returns all API keys owned by the authenticated developer",
                 "produces": [
                     "application/json"
@@ -433,6 +473,11 @@
                 }
             },
             "post": {
+                "security": [
+                    {
+                        "SessionAuth": []
+                    }
+                ],
                 "description": "Creates a new API key for the authenticated developer",
                 "consumes": [
                     "application/json"
@@ -491,6 +536,11 @@
         },
         "/apikeys/{id}": {
             "delete": {
+                "security": [
+                    {
+                        "SessionAuth": []
+                    }
+                ],
                 "description": "Deletes an API key owned by the authenticated developer",
                 "tags": [
                     "apikeys"
@@ -678,6 +728,11 @@
         },
         "/auth/logout": {
             "post": {
+                "security": [
+                    {
+                        "SessionAuth": []
+                    }
+                ],
                 "description": "Clears the user session and logs out",
                 "tags": [
                     "auth"
@@ -698,6 +753,11 @@
         },
         "/auth/me": {
             "get": {
+                "security": [
+                    {
+                        "SessionAuth": []
+                    }
+                ],
                 "description": "Returns the currently authenticated user's profile",
                 "produces": [
                     "application/json"
@@ -730,6 +790,11 @@
         },
         "/auth/me/developer": {
             "post": {
+                "security": [
+                    {
+                        "SessionAuth": []
+                    }
+                ],
                 "description": "Upgrades the current user to developer status",
                 "tags": [
                     "auth"
@@ -762,6 +827,11 @@
         },
         "/me/agents": {
             "get": {
+                "security": [
+                    {
+                        "SessionAuth": []
+                    }
+                ],
                 "description": "Returns all agents installed by the authenticated user",
                 "produces": [
                     "application/json"
@@ -794,6 +864,11 @@
         },
         "/me/agents/{id}": {
             "delete": {
+                "security": [
+                    {
+                        "SessionAuth": []
+                    }
+                ],
                 "description": "Removes an installed agent from the user's account",
                 "tags": [
                     "installs"
@@ -835,6 +910,11 @@
         },
         "/me/agents/{id}/install": {
             "post": {
+                "security": [
+                    {
+                        "SessionAuth": []
+                    }
+                ],
                 "description": "Installs a public agent for the authenticated user",
                 "consumes": [
                     "application/json"
@@ -906,6 +986,11 @@
         },
         "/me/agents/{id}/scopes": {
             "put": {
+                "security": [
+                    {
+                        "SessionAuth": []
+                    }
+                ],
                 "description": "Updates the granted scopes for an installed agent",
                 "consumes": [
                     "application/json"
@@ -965,6 +1050,11 @@
         },
         "/metrics/agents/{id}": {
             "get": {
+                "security": [
+                    {
+                        "SessionAuth": []
+                    }
+                ],
                 "description": "Returns hourly metrics for an agent owned by the developer",
                 "produces": [
                     "application/json"
@@ -1024,6 +1114,11 @@
         },
         "/metrics/agents/{id}/summary": {
             "get": {
+                "security": [
+                    {
+                        "SessionAuth": []
+                    }
+                ],
                 "description": "Returns aggregated 7-day metrics summary for an agent",
                 "produces": [
                     "application/json"
@@ -1262,6 +1357,11 @@
                 }
             },
             "post": {
+                "security": [
+                    {
+                        "SessionAuth": []
+                    }
+                ],
                 "description": "Creates a review for an installed agent",
                 "consumes": [
                     "application/json"

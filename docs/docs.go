@@ -17,6 +17,11 @@ const docTemplate = `{
     "paths": {
         "/agents": {
             "get": {
+                "security": [
+                    {
+                        "SessionAuth": []
+                    }
+                ],
                 "description": "Returns all agents owned by the authenticated developer",
                 "produces": [
                     "application/json"
@@ -53,6 +58,11 @@ const docTemplate = `{
                 }
             },
             "post": {
+                "security": [
+                    {
+                        "SessionAuth": []
+                    }
+                ],
                 "description": "Creates a new agent for the authenticated developer",
                 "consumes": [
                     "application/json"
@@ -111,6 +121,11 @@ const docTemplate = `{
         },
         "/agents/{id}": {
             "get": {
+                "security": [
+                    {
+                        "SessionAuth": []
+                    }
+                ],
                 "description": "Returns a specific agent owned by the authenticated developer",
                 "produces": [
                     "application/json"
@@ -162,6 +177,11 @@ const docTemplate = `{
                 }
             },
             "put": {
+                "security": [
+                    {
+                        "SessionAuth": []
+                    }
+                ],
                 "description": "Updates an existing agent owned by the authenticated developer",
                 "consumes": [
                     "application/json"
@@ -231,6 +251,11 @@ const docTemplate = `{
                 }
             },
             "delete": {
+                "security": [
+                    {
+                        "SessionAuth": []
+                    }
+                ],
                 "description": "Deletes an agent owned by the authenticated developer",
                 "tags": [
                     "agents"
@@ -278,6 +303,11 @@ const docTemplate = `{
         },
         "/agents/{id}/publish": {
             "post": {
+                "security": [
+                    {
+                        "SessionAuth": []
+                    }
+                ],
                 "description": "Makes an agent publicly available in the marketplace",
                 "produces": [
                     "application/json"
@@ -331,6 +361,11 @@ const docTemplate = `{
         },
         "/agents/{id}/reviews/{review_id}/reply": {
             "post": {
+                "security": [
+                    {
+                        "SessionAuth": []
+                    }
+                ],
                 "description": "Adds a developer reply to a review on their agent",
                 "consumes": [
                     "application/json"
@@ -403,6 +438,11 @@ const docTemplate = `{
         },
         "/apikeys": {
             "get": {
+                "security": [
+                    {
+                        "SessionAuth": []
+                    }
+                ],
                 "description": "Returns all API keys owned by the authenticated developer",
                 "produces": [
                     "application/json"
@@ -439,6 +479,11 @@ const docTemplate = `{
                 }
             },
             "post": {
+                "security": [
+                    {
+                        "SessionAuth": []
+                    }
+                ],
                 "description": "Creates a new API key for the authenticated developer",
                 "consumes": [
                     "application/json"
@@ -497,6 +542,11 @@ const docTemplate = `{
         },
         "/apikeys/{id}": {
             "delete": {
+                "security": [
+                    {
+                        "SessionAuth": []
+                    }
+                ],
                 "description": "Deletes an API key owned by the authenticated developer",
                 "tags": [
                     "apikeys"
@@ -684,6 +734,11 @@ const docTemplate = `{
         },
         "/auth/logout": {
             "post": {
+                "security": [
+                    {
+                        "SessionAuth": []
+                    }
+                ],
                 "description": "Clears the user session and logs out",
                 "tags": [
                     "auth"
@@ -704,6 +759,11 @@ const docTemplate = `{
         },
         "/auth/me": {
             "get": {
+                "security": [
+                    {
+                        "SessionAuth": []
+                    }
+                ],
                 "description": "Returns the currently authenticated user's profile",
                 "produces": [
                     "application/json"
@@ -736,6 +796,11 @@ const docTemplate = `{
         },
         "/auth/me/developer": {
             "post": {
+                "security": [
+                    {
+                        "SessionAuth": []
+                    }
+                ],
                 "description": "Upgrades the current user to developer status",
                 "tags": [
                     "auth"
@@ -768,6 +833,11 @@ const docTemplate = `{
         },
         "/me/agents": {
             "get": {
+                "security": [
+                    {
+                        "SessionAuth": []
+                    }
+                ],
                 "description": "Returns all agents installed by the authenticated user",
                 "produces": [
                     "application/json"
@@ -800,6 +870,11 @@ const docTemplate = `{
         },
         "/me/agents/{id}": {
             "delete": {
+                "security": [
+                    {
+                        "SessionAuth": []
+                    }
+                ],
                 "description": "Removes an installed agent from the user's account",
                 "tags": [
                     "installs"
@@ -841,6 +916,11 @@ const docTemplate = `{
         },
         "/me/agents/{id}/install": {
             "post": {
+                "security": [
+                    {
+                        "SessionAuth": []
+                    }
+                ],
                 "description": "Installs a public agent for the authenticated user",
                 "consumes": [
                     "application/json"
@@ -912,6 +992,11 @@ const docTemplate = `{
         },
         "/me/agents/{id}/scopes": {
             "put": {
+                "security": [
+                    {
+                        "SessionAuth": []
+                    }
+                ],
                 "description": "Updates the granted scopes for an installed agent",
                 "consumes": [
                     "application/json"
@@ -971,6 +1056,11 @@ const docTemplate = `{
         },
         "/metrics/agents/{id}": {
             "get": {
+                "security": [
+                    {
+                        "SessionAuth": []
+                    }
+                ],
                 "description": "Returns hourly metrics for an agent owned by the developer",
                 "produces": [
                     "application/json"
@@ -1030,6 +1120,11 @@ const docTemplate = `{
         },
         "/metrics/agents/{id}/summary": {
             "get": {
+                "security": [
+                    {
+                        "SessionAuth": []
+                    }
+                ],
                 "description": "Returns aggregated 7-day metrics summary for an agent",
                 "produces": [
                     "application/json"
@@ -1268,6 +1363,11 @@ const docTemplate = `{
                 }
             },
             "post": {
+                "security": [
+                    {
+                        "SessionAuth": []
+                    }
+                ],
                 "description": "Creates a review for an installed agent",
                 "consumes": [
                     "application/json"

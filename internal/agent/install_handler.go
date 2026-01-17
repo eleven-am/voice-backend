@@ -39,6 +39,7 @@ func (h *InstallHandler) RegisterRoutes(g *echo.Group) {
 // @Success      200  {object}  dto.InstalledAgentsResponse
 // @Failure      401  {object}  shared.APIError
 // @Failure      500  {object}  shared.APIError
+// @Security     SessionAuth
 // @Router       /me/agents [get]
 func (h *InstallHandler) List(c echo.Context) error {
 	userID, csrf, err := h.sessions.Get(c)
@@ -90,6 +91,7 @@ func (h *InstallHandler) List(c echo.Context) error {
 // @Failure      404      {object}  shared.APIError
 // @Failure      409      {object}  shared.APIError
 // @Failure      500      {object}  shared.APIError
+// @Security     SessionAuth
 // @Router       /me/agents/{id}/install [post]
 func (h *InstallHandler) Install(c echo.Context) error {
 	userID, csrf, err := h.sessions.Get(c)
@@ -155,6 +157,7 @@ func (h *InstallHandler) Install(c echo.Context) error {
 // @Failure      401  {object}  shared.APIError
 // @Failure      404  {object}  shared.APIError
 // @Failure      500  {object}  shared.APIError
+// @Security     SessionAuth
 // @Router       /me/agents/{id} [delete]
 func (h *InstallHandler) Uninstall(c echo.Context) error {
 	userID, csrf, err := h.sessions.Get(c)
@@ -190,6 +193,7 @@ func (h *InstallHandler) Uninstall(c echo.Context) error {
 // @Failure      401  {object}  shared.APIError
 // @Failure      404  {object}  shared.APIError
 // @Failure      500  {object}  shared.APIError
+// @Security     SessionAuth
 // @Router       /me/agents/{id}/scopes [put]
 func (h *InstallHandler) UpdateScopes(c echo.Context) error {
 	userID, csrf, err := h.sessions.Get(c)

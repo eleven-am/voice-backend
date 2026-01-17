@@ -108,6 +108,7 @@ func (h *Handler) GitHubCallback(c echo.Context) error {
 // @Success      200  {object}  dto.MeResponse
 // @Failure      401  {object}  shared.APIError
 // @Failure      404  {object}  shared.APIError
+// @Security     SessionAuth
 // @Router       /auth/me [get]
 func (h *Handler) Me(c echo.Context) error {
 	userID, csrf, err := h.sessions.Get(c)
@@ -142,6 +143,7 @@ func (h *Handler) Me(c echo.Context) error {
 // @Failure      401  {object}  shared.APIError
 // @Failure      404  {object}  shared.APIError
 // @Failure      500  {object}  shared.APIError
+// @Security     SessionAuth
 // @Router       /auth/me/developer [post]
 func (h *Handler) BecomeDeveloper(c echo.Context) error {
 	userID, csrf, err := h.sessions.Get(c)
@@ -170,6 +172,7 @@ func (h *Handler) BecomeDeveloper(c echo.Context) error {
 // @Tags         auth
 // @Success      204  "No Content"
 // @Failure      401  {object}  shared.APIError
+// @Security     SessionAuth
 // @Router       /auth/logout [post]
 func (h *Handler) Logout(c echo.Context) error {
 	_, csrf, err := h.sessions.Get(c)

@@ -97,6 +97,7 @@ func metricsToResponse(m *Metrics) dto.MetricsResponse {
 // @Failure      403    {object}  shared.APIError
 // @Failure      404    {object}  shared.APIError
 // @Failure      500    {object}  shared.APIError
+// @Security     SessionAuth
 // @Router       /metrics/agents/{id} [get]
 func (h *Handler) GetMetrics(c echo.Context) error {
 	agentID := c.Param("id")
@@ -142,6 +143,7 @@ func (h *Handler) GetMetrics(c echo.Context) error {
 // @Failure      403  {object}  shared.APIError
 // @Failure      404  {object}  shared.APIError
 // @Failure      500  {object}  shared.APIError
+// @Security     SessionAuth
 // @Router       /metrics/agents/{id}/summary [get]
 func (h *Handler) GetSummary(c echo.Context) error {
 	agentID := c.Param("id")
