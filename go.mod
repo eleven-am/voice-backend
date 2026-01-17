@@ -7,7 +7,8 @@ require (
 	github.com/labstack/echo/v4 v4.12.0
 	github.com/qdrant/go-client v1.12.0
 	github.com/redis/go-redis/v9 v9.7.0
-	github.com/swaggo/swag/v2 v2.0.0-rc5
+	github.com/swaggo/echo-swagger v1.4.1
+	github.com/swaggo/swag v1.8.12
 	go.uber.org/fx v1.23.0
 	golang.org/x/oauth2 v0.24.0
 	google.golang.org/grpc v1.66.0
@@ -38,10 +39,7 @@ require (
 	github.com/mailru/easyjson v0.7.7 // indirect
 	github.com/mattn/go-colorable v0.1.13 // indirect
 	github.com/mattn/go-isatty v0.0.20 // indirect
-	github.com/sv-tools/openapi v0.4.0 // indirect
-	github.com/swaggo/echo-swagger v1.4.1 // indirect
 	github.com/swaggo/files/v2 v2.0.0 // indirect
-	github.com/swaggo/swag v1.8.12 // indirect
 	github.com/valyala/bytebufferpool v1.0.0 // indirect
 	github.com/valyala/fasttemplate v1.2.2 // indirect
 	go.uber.org/dig v1.18.0 // indirect
