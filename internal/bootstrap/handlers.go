@@ -11,6 +11,7 @@ import (
 	"github.com/eleven-am/voice-backend/internal/session"
 	"github.com/eleven-am/voice-backend/internal/user"
 	"github.com/labstack/echo/v4"
+	echoSwagger "github.com/swaggo/echo-swagger"
 	"go.uber.org/fx"
 )
 
@@ -53,6 +54,8 @@ func RegisterRoutes(e *echo.Echo, params HandlerParams) {
 	params.SessionHandler.RegisterRoutes(api.Group("/metrics"))
 
 	params.GatewayHandler.RegisterRoutes(api.Group("/gateway"))
+
+	e.GET("/swagger/*", echoSwagger.WrapHandler)
 
 	e.Static("/assets", params.Config.StaticDir)
 	e.GET("/*", func(c echo.Context) error {
