@@ -5,6 +5,7 @@
 *.so
 *.dylib
 /voice-backend
+/server
 
 # Test/coverage
 *.test
