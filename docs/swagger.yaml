@@ -495,7 +495,6 @@ definitions:
         example: Invalid request body
         type: string
     type: object
-host: api.voice.example.com
 info:
   contact: {}
   description: API server for voice agent platform

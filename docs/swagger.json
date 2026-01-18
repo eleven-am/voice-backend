@@ -6,7 +6,6 @@
         "contact": {},
         "version": "1.0.0"
     },
-    "host": "api.voice.example.com",
     "basePath": "/api/v1",
     "paths": {
         "/agents": {

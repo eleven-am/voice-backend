@@ -4,6 +4,6 @@ const (
 	SwaggerTitle       = "Voice Backend API"
 	SwaggerDescription = "API server for voice agent platform"
 	SwaggerVersion     = "1.0.0"
-	SwaggerHost        = "api.voice.example.com"
+	SwaggerHost        = ""
 	SwaggerBasePath    = "/api/v1"
 )

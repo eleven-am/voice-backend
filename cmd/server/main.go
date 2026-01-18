@@ -9,7 +9,6 @@ import (
 // @version 1.0.0
 // @description API server for voice agent platform
 
-// @host api.voice.example.com
 // @BasePath /api/v1
 
 // @securityDefinitions.apikey SessionAuth
