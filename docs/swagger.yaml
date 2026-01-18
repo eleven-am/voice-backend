@@ -222,6 +222,21 @@ definitions:
           $ref: '#/definitions/github_com_eleven-am_voice-backend_internal_dto.InstalledAgentResponse'
         type: array
     type: object
+  github_com_eleven-am_voice-backend_internal_dto.LiveKitTokenResponse:
+    properties:
+      identity:
+        example: user_abc123
+        type: string
+      room:
+        example: room_abc123xyz
+        type: string
+      token:
+        example: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+        type: string
+      url:
+        example: wss://livekit.maix.ovh
+        type: string
+    type: object
   github_com_eleven-am_voice-backend_internal_dto.MarketplaceAgentResponse:
     properties:
       avg_rating:
@@ -1009,6 +1024,34 @@ paths:
       summary: Become a developer
       tags:
       - auth
+  /gateway/token:
+    post:
+      description: Generates a LiveKit access token for the authenticated user to
+        join a voice room
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/github_com_eleven-am_voice-backend_internal_dto.LiveKitTokenResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/github_com_eleven-am_voice-backend_internal_shared.APIError'
+        "403":
+          description: No installed agents
+          schema:
+            $ref: '#/definitions/github_com_eleven-am_voice-backend_internal_shared.APIError'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/github_com_eleven-am_voice-backend_internal_shared.APIError'
+      security:
+      - SessionAuth: []
+      summary: Create a LiveKit token
+      tags:
+      - gateway
   /me/agents:
     get:
       description: Returns all agents installed by the authenticated user

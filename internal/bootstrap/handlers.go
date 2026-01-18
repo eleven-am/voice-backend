@@ -105,6 +105,14 @@ func ProvideSessionHandler(store *session.Store, agentStore *agent.Store, userSt
 	return session.NewHandler(store, agentStore, userStore, sessions, logger.With("handler", "session"))
 }
 
+func ProvideLiveKitConfig(cfg *Config) gateway.LiveKitConfig {
+	return gateway.LiveKitConfig{
+		APIKey:    cfg.LiveKitAPIKey,
+		APISecret: cfg.LiveKitAPISecret,
+		URL:       cfg.LiveKitURL,
+	}
+}
+
 var HandlersModule = fx.Options(
 	fx.Provide(
 		ProvideLogger,
@@ -112,6 +120,7 @@ var HandlersModule = fx.Options(
 		ProvideGoogleProvider,
 		ProvideGitHubProvider,
 		ProvideEmbeddingService,
+		ProvideLiveKitConfig,
 		ProvideUserHandler,
 		ProvideAgentHandler,
 		ProvideMarketplaceHandler,

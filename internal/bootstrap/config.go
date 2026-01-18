@@ -13,6 +13,10 @@ type Config struct {
 	CookieDomain   string
 	AllowedSchemes []string
 
+	LiveKitAPIKey    string
+	LiveKitAPISecret string
+	LiveKitURL       string
+
 	GoogleClientID     string
 	GoogleClientSecret string
 	GoogleRedirectURL  string
@@ -44,6 +48,10 @@ func LoadConfig() *Config {
 		CookieSecure:   getEnv("COOKIE_SECURE", "false") == "true",
 		CookieDomain:   getEnv("COOKIE_DOMAIN", ""),
 		AllowedSchemes: []string{},
+
+		LiveKitAPIKey:    getEnv("LIVEKIT_API_KEY", ""),
+		LiveKitAPISecret: getEnv("LIVEKIT_API_SECRET", ""),
+		LiveKitURL:       getEnv("LIVEKIT_URL", "ws://localhost:7880"),
 
 		GoogleClientID:     getEnv("GOOGLE_CLIENT_ID", ""),
 		GoogleClientSecret: getEnv("GOOGLE_CLIENT_SECRET", ""),

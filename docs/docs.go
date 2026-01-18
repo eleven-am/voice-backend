@@ -831,6 +831,49 @@ const docTemplate = `{
                 }
             }
         },
+        "/gateway/token": {
+            "post": {
+                "security": [
+                    {
+                        "SessionAuth": []
+                    }
+                ],
+                "description": "Generates a LiveKit access token for the authenticated user to join a voice room",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "gateway"
+                ],
+                "summary": "Create a LiveKit token",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_eleven-am_voice-backend_internal_dto.LiveKitTokenResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_eleven-am_voice-backend_internal_shared.APIError"
+                        }
+                    },
+                    "403": {
+                        "description": "No installed agents",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_eleven-am_voice-backend_internal_shared.APIError"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_eleven-am_voice-backend_internal_shared.APIError"
+                        }
+                    }
+                }
+            }
+        },
         "/me/agents": {
             "get": {
                 "security": [
@@ -1754,6 +1797,27 @@ const docTemplate = `{
                 }
             }
         },
+        "github_com_eleven-am_voice-backend_internal_dto.LiveKitTokenResponse": {
+            "type": "object",
+            "properties": {
+                "identity": {
+                    "type": "string",
+                    "example": "user_abc123"
+                },
+                "room": {
+                    "type": "string",
+                    "example": "room_abc123xyz"
+                },
+                "token": {
+                    "type": "string",
+                    "example": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+                },
+                "url": {
+                    "type": "string",
+                    "example": "wss://livekit.maix.ovh"
+                }
+            }
+        },
         "github_com_eleven-am_voice-backend_internal_dto.MarketplaceAgentResponse": {
             "type": "object",
             "properties": {
@@ -2139,6 +2203,8 @@ var SwaggerInfo = &swag.Spec{
 	Description:      "API server for voice agent platform",
 	InfoInstanceName: "swagger",
 	SwaggerTemplate:  docTemplate,
+	LeftDelim:        "{{",
+	RightDelim:       "}}",
 }
 
 func init() {
