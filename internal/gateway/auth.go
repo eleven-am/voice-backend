@@ -14,11 +14,15 @@ var (
 	ErrAgentIDMismatch = errors.New("agent id does not match api key owner")
 )
 
-type Authenticator struct {
-	apiKeyStore *apikey.Store
+type APIKeyValidator interface {
+	Validate(ctx context.Context, secret string) (*apikey.APIKey, error)
 }
 
-func NewAuthenticator(store *apikey.Store) *Authenticator {
+type Authenticator struct {
+	apiKeyStore APIKeyValidator
+}
+
+func NewAuthenticator(store APIKeyValidator) *Authenticator {
 	return &Authenticator{apiKeyStore: store}
 }
 

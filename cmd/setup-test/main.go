@@ -80,7 +80,6 @@ func main() {
 		OwnerID:   agentID,
 		OwnerType: apikey.OwnerTypeAgent,
 		Name:      "Test Agent Key",
-		Scopes:    shared.StringSlice{"agent:" + agentID},
 	}
 
 	secret, err := apiKeyStore.Create(ctx, key)

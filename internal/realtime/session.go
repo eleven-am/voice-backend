@@ -12,6 +12,7 @@ import (
 
 type Session struct {
 	ID        string
+	userID    string
 	conn      *Conn
 	iceCh     chan webrtc.ICECandidateInit
 	done      chan struct{}
@@ -20,7 +21,7 @@ type Session struct {
 	log       *slog.Logger
 }
 
-func NewSession(conn *Conn, iceBufSize int, log *slog.Logger) *Session {
+func NewSession(conn *Conn, userID string, iceBufSize int, log *slog.Logger) *Session {
 	if iceBufSize <= 0 {
 		iceBufSize = 128
 	}
@@ -36,12 +37,17 @@ func NewSession(conn *Conn, iceBufSize int, log *slog.Logger) *Session {
 
 	return &Session{
 		ID:        hex.EncodeToString(idBytes[:]),
+		userID:    userID,
 		conn:      conn,
 		iceCh:     make(chan webrtc.ICECandidateInit, iceBufSize),
 		done:      make(chan struct{}),
 		createdAt: time.Now(),
 		log:       log,
 	}
+}
+
+func (s *Session) UserID() string {
+	return s.userID
 }
 
 func (s *Session) Conn() *Conn {

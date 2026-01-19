@@ -51,7 +51,7 @@ type Bridge interface {
 	PublishUtterance(ctx context.Context, msg *AgentMessage) error
 	PublishToAgents(ctx context.Context, agentIDs []string, msg *AgentMessage) error
 	PublishCancellation(ctx context.Context, agentID, sessionID, reason string) error
-	SubscribeToSession(sessionID string)
+	SubscribeToSession(sessionID string) error
 	UnsubscribeFromSession(sessionID string)
 	SetResponseHandler(handler func(sessionID string, msg *AgentMessage))
 }

@@ -110,7 +110,12 @@ func New(conn transport.Connection, bridge transport.Bridge, cfg Config, log *sl
 	s.tts = ttsClient
 
 	bridge.SetResponseHandler(s.onAgentResponse)
-	bridge.SubscribeToSession(sessionID)
+	if err := bridge.SubscribeToSession(sessionID); err != nil {
+		ttsClient.Close()
+		sttClient.Close()
+		cancel()
+		return nil, err
+	}
 
 	return s, nil
 }

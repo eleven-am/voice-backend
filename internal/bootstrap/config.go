@@ -14,6 +14,7 @@ type Config struct {
 	CookieSecure   bool
 	CookieDomain   string
 	AllowedSchemes []string
+	CORSOrigins    []string
 
 	RTCICEServers []ICEServerConfig
 	RTCPortMin    int
@@ -61,6 +62,7 @@ func LoadConfig() *Config {
 		CookieSecure:   getEnv("COOKIE_SECURE", "false") == "true",
 		CookieDomain:   getEnv("COOKIE_DOMAIN", ""),
 		AllowedSchemes: []string{},
+		CORSOrigins:    parseCORSOrigins(getEnv("CORS_ORIGINS", "")),
 
 		RTCICEServers: parseICEServers(getEnv("RTC_ICE_SERVERS", "stun:stun.l.google.com:19302")),
 		RTCPortMin:    getEnvInt("RTC_PORT_MIN", 10000),
@@ -128,4 +130,19 @@ func parseICEServers(envValue string) []ICEServerConfig {
 	}
 
 	return servers
+}
+
+func parseCORSOrigins(envValue string) []string {
+	if envValue == "" {
+		return nil
+	}
+
+	var origins []string
+	for _, origin := range strings.Split(envValue, ",") {
+		origin = strings.TrimSpace(origin)
+		if origin != "" {
+			origins = append(origins, origin)
+		}
+	}
+	return origins
 }

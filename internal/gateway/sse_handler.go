@@ -6,37 +6,31 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/gorilla/websocket"
+	"github.com/eleven-am/voice-backend/internal/shared"
 	"github.com/labstack/echo/v4"
 )
 
-var wsUpgrader = websocket.Upgrader{
-	ReadBufferSize:  1024,
-	WriteBufferSize: 1024,
-	CheckOrigin: func(r *http.Request) bool {
-		return true
-	},
-}
-
 type AgentHandler struct {
-	auth     *Authenticator
-	registry *AgentRegistry
-	bridge   *Bridge
-	logger   *slog.Logger
+	auth   *Authenticator
+	bridge *Bridge
+	logger *slog.Logger
 }
 
-func NewAgentHandler(auth *Authenticator, registry *AgentRegistry, bridge *Bridge, logger *slog.Logger) *AgentHandler {
+func NewAgentHandler(auth *Authenticator, bridge *Bridge, logger *slog.Logger) *AgentHandler {
 	return &AgentHandler{
-		auth:     auth,
-		registry: registry,
-		bridge:   bridge,
-		logger:   logger.With("component", "agent_handler"),
+		auth:   auth,
+		bridge: bridge,
+		logger: logger.With("component", "agent_handler"),
 	}
 }
 
 func (h *AgentHandler) RegisterRoutes(g *echo.Group) {
-	g.GET("", h.HandleConnect)
-	g.POST("", h.HandleEvent)
+	authMiddleware := APIKeyAuth(h.auth)
+	rateLimiter := RateLimiter(DefaultRateLimiterConfig())
+
+	g.GET("", h.HandleConnect, authMiddleware)
+	g.POST("", h.HandleEvent, authMiddleware, rateLimiter)
+	g.GET("/status", h.HandleStatus)
 }
 
 func (h *AgentHandler) HandleConnect(c echo.Context) error {
@@ -48,70 +42,12 @@ func (h *AgentHandler) HandleConnect(c echo.Context) error {
 	return h.handleSSE(c)
 }
 
-func (h *AgentHandler) handleWebSocket(c echo.Context) error {
-	apiKey := extractAPIKey(c.Request())
-	if apiKey == "" {
-		return echo.NewHTTPError(http.StatusUnauthorized, "missing api key")
-	}
-
-	key, err := h.auth.ValidateAPIKey(c.Request().Context(), apiKey)
-	if err != nil {
-		return echo.NewHTTPError(http.StatusUnauthorized, err.Error())
-	}
-
-	if err := h.auth.ValidateAgentAccess(key, key.OwnerID); err != nil {
-		return echo.NewHTTPError(http.StatusForbidden, err.Error())
-	}
-
-	agentID := key.OwnerID
-
-	ws, err := wsUpgrader.Upgrade(c.Response(), c.Request(), nil)
-	if err != nil {
-		h.logger.Error("websocket upgrade failed", "error", err)
-		return err
-	}
-
-	conn := newWSAgentConnection(ws, agentID, key.OwnerID, h.logger)
-
-	if err := h.registry.Register(conn); err != nil {
-		h.logger.Error("failed to register agent", "error", err)
-		_ = ws.Close()
-		return nil
-	}
-
-	h.bridge.RegisterAgent(conn)
-
-	h.logger.Info("agent connected (WebSocket)", "agent_id", agentID, "owner_id", key.OwnerID)
-
-	go conn.writePump()
-	conn.readPump(h.bridge)
-
-	h.bridge.UnregisterAgent(agentID)
-	h.registry.Unregister(agentID)
-
-	h.logger.Info("agent disconnected (WebSocket)", "agent_id", agentID)
-	return nil
-}
-
 func (h *AgentHandler) handleSSE(c echo.Context) error {
-	apiKey := extractAPIKey(c.Request())
-	if apiKey == "" {
-		return echo.NewHTTPError(http.StatusUnauthorized, "missing api key")
-	}
-
-	key, err := h.auth.ValidateAPIKey(c.Request().Context(), apiKey)
-	if err != nil {
-		return echo.NewHTTPError(http.StatusUnauthorized, err.Error())
-	}
-
-	if err := h.auth.ValidateAgentAccess(key, key.OwnerID); err != nil {
-		return echo.NewHTTPError(http.StatusForbidden, err.Error())
-	}
-
+	key := GetAPIKey(c)
 	agentID := key.OwnerID
 
-	if h.registry.IsOnline(agentID) {
-		return echo.NewHTTPError(http.StatusConflict, "agent already connected")
+	if h.bridge.IsOnline(agentID) {
+		return shared.Conflict("agent_already_connected", "agent already connected")
 	}
 
 	c.Response().Header().Set("Content-Type", "text/event-stream")
@@ -123,19 +59,14 @@ func (h *AgentHandler) handleSSE(c echo.Context) error {
 	conn, err := NewSSEAgentConn(c.Response(), agentID, key.OwnerID)
 	if err != nil {
 		h.logger.Error("failed to create SSE connection", "error", err)
-		return echo.NewHTTPError(http.StatusInternalServerError, "failed to create SSE connection")
+		return shared.InternalError("sse_connection_failed", "failed to create SSE connection")
 	}
 
-	if err := h.registry.Register(conn); err != nil {
+	if err := h.bridge.RegisterAgent(conn); err != nil {
 		h.logger.Error("failed to register agent", "error", err)
-		return echo.NewHTTPError(http.StatusInternalServerError, "failed to register agent")
+		return shared.InternalError("registration_failed", "failed to register agent")
 	}
-
-	h.bridge.RegisterAgent(conn)
-	defer func() {
-		h.bridge.UnregisterAgent(agentID)
-		h.registry.Unregister(agentID)
-	}()
+	defer h.bridge.UnregisterAgent(agentID)
 
 	h.logger.Info("agent connected (SSE)", "agent_id", agentID, "owner_id", key.OwnerID)
 
@@ -146,35 +77,15 @@ func (h *AgentHandler) handleSSE(c echo.Context) error {
 }
 
 func (h *AgentHandler) HandleEvent(c echo.Context) error {
-	apiKey := extractAPIKey(c.Request())
-	if apiKey == "" {
-		return echo.NewHTTPError(http.StatusUnauthorized, "missing api key")
-	}
-
-	key, err := h.auth.ValidateAPIKey(c.Request().Context(), apiKey)
-	if err != nil {
-		return echo.NewHTTPError(http.StatusUnauthorized, err.Error())
-	}
-
-	if err := h.auth.ValidateAgentAccess(key, key.OwnerID); err != nil {
-		return echo.NewHTTPError(http.StatusForbidden, err.Error())
-	}
-
+	key := GetAPIKey(c)
 	agentID := key.OwnerID
 
 	var event AgentEvent
 	if err := c.Bind(&event); err != nil {
-		return echo.NewHTTPError(http.StatusBadRequest, "invalid event payload")
+		return shared.BadRequest("invalid_payload", "invalid event payload")
 	}
 
 	event.AgentID = agentID
-
-	sseConn, ok := h.registry.GetSSE(agentID)
-	if !ok {
-		return echo.NewHTTPError(http.StatusConflict, "agent not connected via SSE")
-	}
-
-	sseConn.RouteEvent(event)
 
 	if event.Type == AgentEventResponseTextDelta || event.Type == AgentEventResponseTextDone {
 		if p, ok := event.Payload.(map[string]any); ok {
@@ -194,7 +105,7 @@ func (h *AgentHandler) HandleEvent(c echo.Context) error {
 }
 
 func (h *AgentHandler) HandleStatus(c echo.Context) error {
-	agents := h.registry.List()
+	agents := h.bridge.ListAgents()
 	return c.JSON(http.StatusOK, map[string]any{
 		"agents": agents,
 		"count":  len(agents),

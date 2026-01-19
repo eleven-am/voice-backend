@@ -7,6 +7,9 @@ type Transcriber interface {
 	SendAudio(pcm []byte) error
 	WaitReady(ctx context.Context) bool
 	IsConnected() bool
+	IsReconnecting() bool
 	Reconnect() error
+	ReconnectSync() error
+	WaitReconnect(ctx context.Context) error
 	Close() error
 }

@@ -77,13 +77,13 @@ func (m *Manager) iceServers() []webrtc.ICEServer {
 	return servers
 }
 
-func (m *Manager) CreateSession(conn *Conn) *Session {
+func (m *Manager) CreateSession(conn *Conn, userID string) *Session {
 	iceBufSize := m.cfg.BufferSizes.ICECandidates
 	if iceBufSize <= 0 {
 		iceBufSize = 128
 	}
 
-	session := NewSession(conn, iceBufSize, nil)
+	session := NewSession(conn, userID, iceBufSize, nil)
 
 	m.mu.Lock()
 	m.sessions[session.ID] = session

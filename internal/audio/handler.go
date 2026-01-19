@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/eleven-am/voice-backend/internal/apikey"
 	"github.com/eleven-am/voice-backend/internal/shared"
@@ -22,6 +23,7 @@ const (
 	maxAudioDataSize = 50 * 1024 * 1024
 	maxSpeed         = 4.0
 	minSpeed         = 0.25
+	synthesisTimeout = 30 * time.Second
 )
 
 type Handler struct {
@@ -146,7 +148,7 @@ func (h *Handler) HandleSpeech(c echo.Context) error {
 		req.Speed = 1.0
 	}
 
-	ctx, cancel := context.WithCancel(c.Request().Context())
+	ctx, cancel := context.WithTimeout(c.Request().Context(), synthesisTimeout)
 	defer cancel()
 
 	var mu sync.Mutex

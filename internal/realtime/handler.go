@@ -77,6 +77,11 @@ func (h *Handler) RegisterRoutes(g *echo.Group) {
 }
 
 func (h *Handler) HandleICECandidate(c echo.Context) error {
+	profile, err := h.auth(c.Request())
+	if err != nil {
+		return echo.NewHTTPError(http.StatusUnauthorized, "unauthorized")
+	}
+
 	sessionID := c.Param("session_id")
 	if sessionID == "" {
 		return echo.NewHTTPError(http.StatusBadRequest, "missing session id")
@@ -85,6 +90,10 @@ func (h *Handler) HandleICECandidate(c echo.Context) error {
 	session, ok := h.manager.GetSession(sessionID)
 	if !ok {
 		return echo.NewHTTPError(http.StatusNotFound, "session not found")
+	}
+
+	if session.UserID() != profile.UserID {
+		return echo.NewHTTPError(http.StatusForbidden, "session access denied")
 	}
 
 	var req ICECandidateRequest
@@ -108,6 +117,11 @@ func (h *Handler) HandleICECandidate(c echo.Context) error {
 }
 
 func (h *Handler) HandleICEStream(c echo.Context) error {
+	profile, err := h.auth(c.Request())
+	if err != nil {
+		return echo.NewHTTPError(http.StatusUnauthorized, "unauthorized")
+	}
+
 	sessionID := c.Param("session_id")
 	if sessionID == "" {
 		return echo.NewHTTPError(http.StatusBadRequest, "missing session id")
@@ -116,6 +130,10 @@ func (h *Handler) HandleICEStream(c echo.Context) error {
 	session, ok := h.manager.GetSession(sessionID)
 	if !ok {
 		return echo.NewHTTPError(http.StatusNotFound, "session not found")
+	}
+
+	if session.UserID() != profile.UserID {
+		return echo.NewHTTPError(http.StatusForbidden, "session access denied")
 	}
 
 	c.Response().Header().Set("Content-Type", "text/event-stream")
@@ -233,7 +251,7 @@ func (h *Handler) HandleOffer(c echo.Context) error {
 		conn.SetupDataChannel(dc)
 	})
 
-	rtcSession := h.manager.CreateSession(conn)
+	rtcSession := h.manager.CreateSession(conn, profile.UserID)
 
 	peer.OnICECandidate(func(cand *webrtc.ICECandidate) {
 		if cand == nil {

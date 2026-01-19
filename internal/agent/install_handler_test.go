@@ -1,6 +1,7 @@
 package agent
 
 import (
+	"context"
 	"encoding/json"
 	"io"
 	"log/slog"
@@ -13,6 +14,9 @@ import (
 	"github.com/eleven-am/voice-backend/internal/dto"
 	"github.com/eleven-am/voice-backend/internal/user"
 	"github.com/labstack/echo/v4"
+	"gorm.io/driver/sqlite"
+	"gorm.io/gorm"
+	gormlogger "gorm.io/gorm/logger"
 )
 
 func newTestInstallHandler() (*InstallHandler, *user.SessionManager) {
@@ -252,5 +256,392 @@ func TestAgentInstall_Fields(t *testing.T) {
 	}
 	if install.InstalledAt != now {
 		t.Error("InstalledAt should match")
+	}
+}
+
+func newTestInstallHandlerWithDB(t *testing.T) (*InstallHandler, *user.SessionManager, *Store, *user.Store) {
+	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{
+		Logger: gormlogger.Default.LogMode(gormlogger.Silent),
+	})
+	if err != nil {
+		t.Fatalf("failed to open test database: %v", err)
+	}
+
+	userStore := user.NewStore(db)
+	userStore.Migrate()
+
+	store := NewStore(db, nil)
+	store.Migrate()
+
+	sm := user.NewSessionManager([]byte("test-secret-key-32-bytes-long!!"), false, "")
+	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
+	h := NewInstallHandler(store, sm, logger)
+	return h, sm, store, userStore
+}
+
+func createInstallSessionCookies(_ *testing.T, sm *user.SessionManager, userID string) (sessionCookie, csrfCookie *http.Cookie, csrfToken string) {
+	e := echo.New()
+	rec := httptest.NewRecorder()
+	c := e.NewContext(httptest.NewRequest(http.MethodGet, "/", nil), rec)
+	sm.Create(c, userID)
+
+	cookies := rec.Result().Cookies()
+	for _, cookie := range cookies {
+		if cookie.Name == "voice_session" {
+			sessionCookie = cookie
+		}
+		if cookie.Name == "voice_csrf" {
+			csrfCookie = cookie
+			csrfToken = cookie.Value
+		}
+	}
+	return
+}
+
+func TestInstallHandler_List_Success(t *testing.T) {
+	h, sm, store, userStore := newTestInstallHandlerWithDB(t)
+	ctx := context.Background()
+
+	userStore.Create(ctx, &user.User{
+		ID:          "user_install_list",
+		Provider:    "google",
+		ProviderSub: "sub_install_list",
+	})
+
+	store.Create(ctx, &Agent{
+		ID:          "agent_installed_1",
+		DeveloperID: "dev_1",
+		Name:        "Installed Agent 1",
+		IsPublic:    true,
+	})
+	store.Create(ctx, &Agent{
+		ID:          "agent_installed_2",
+		DeveloperID: "dev_1",
+		Name:        "Installed Agent 2",
+		IsPublic:    true,
+	})
+
+	store.Install(ctx, &AgentInstall{
+		ID:      "inst_1",
+		UserID:  "user_install_list",
+		AgentID: "agent_installed_1",
+	})
+	store.Install(ctx, &AgentInstall{
+		ID:      "inst_2",
+		UserID:  "user_install_list",
+		AgentID: "agent_installed_2",
+	})
+
+	e := echo.New()
+	req := httptest.NewRequest(http.MethodGet, "/me/agents", nil)
+	rec := httptest.NewRecorder()
+
+	sessionCookie, csrfCookie, csrfToken := createInstallSessionCookies(t, sm, "user_install_list")
+	req.AddCookie(sessionCookie)
+	req.AddCookie(csrfCookie)
+	req.Header.Set("X-CSRF-Token", csrfToken)
+
+	c := e.NewContext(req, rec)
+
+	err := h.List(c)
+	if err != nil {
+		t.Fatalf("List() error = %v", err)
+	}
+	if rec.Code != http.StatusOK {
+		t.Errorf("expected status %d, got %d", http.StatusOK, rec.Code)
+	}
+}
+
+func TestInstallHandler_Install_Success(t *testing.T) {
+	h, sm, store, userStore := newTestInstallHandlerWithDB(t)
+	ctx := context.Background()
+
+	userStore.Create(ctx, &user.User{
+		ID:          "user_installer",
+		Provider:    "google",
+		ProviderSub: "sub_installer",
+	})
+
+	store.Create(ctx, &Agent{
+		ID:          "agent_to_install",
+		DeveloperID: "other_dev",
+		Name:        "Agent To Install",
+		IsPublic:    true,
+	})
+
+	e := echo.New()
+	body := `{"scopes": ["profile", "email"]}`
+	req := httptest.NewRequest(http.MethodPost, "/me/agents/agent_to_install/install", strings.NewReader(body))
+	req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
+	rec := httptest.NewRecorder()
+
+	sessionCookie, csrfCookie, csrfToken := createInstallSessionCookies(t, sm, "user_installer")
+	req.AddCookie(sessionCookie)
+	req.AddCookie(csrfCookie)
+	req.Header.Set("X-CSRF-Token", csrfToken)
+
+	c := e.NewContext(req, rec)
+	c.SetParamNames("id")
+	c.SetParamValues("agent_to_install")
+
+	err := h.Install(c)
+	if err != nil {
+		t.Fatalf("Install() error = %v", err)
+	}
+	if rec.Code != http.StatusCreated {
+		t.Errorf("expected status %d, got %d", http.StatusCreated, rec.Code)
+	}
+}
+
+func TestInstallHandler_Install_AgentNotFound(t *testing.T) {
+	h, sm, _, userStore := newTestInstallHandlerWithDB(t)
+	ctx := context.Background()
+
+	userStore.Create(ctx, &user.User{
+		ID:          "user_install_nf",
+		Provider:    "google",
+		ProviderSub: "sub_install_nf",
+	})
+
+	e := echo.New()
+	body := `{"scopes": ["profile"]}`
+	req := httptest.NewRequest(http.MethodPost, "/me/agents/nonexistent/install", strings.NewReader(body))
+	req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
+	rec := httptest.NewRecorder()
+
+	sessionCookie, csrfCookie, csrfToken := createInstallSessionCookies(t, sm, "user_install_nf")
+	req.AddCookie(sessionCookie)
+	req.AddCookie(csrfCookie)
+	req.Header.Set("X-CSRF-Token", csrfToken)
+
+	c := e.NewContext(req, rec)
+	c.SetParamNames("id")
+	c.SetParamValues("nonexistent")
+
+	err := h.Install(c)
+	if err == nil {
+		t.Fatal("expected error for non-existent agent")
+	}
+	httpErr := err.(*echo.HTTPError)
+	if httpErr.Code != http.StatusNotFound {
+		t.Errorf("expected status %d, got %d", http.StatusNotFound, httpErr.Code)
+	}
+}
+
+func TestInstallHandler_Install_PrivateAgent(t *testing.T) {
+	h, sm, store, userStore := newTestInstallHandlerWithDB(t)
+	ctx := context.Background()
+
+	userStore.Create(ctx, &user.User{
+		ID:          "user_install_priv",
+		Provider:    "google",
+		ProviderSub: "sub_install_priv",
+	})
+
+	store.Create(ctx, &Agent{
+		ID:          "agent_private",
+		DeveloperID: "other_dev",
+		Name:        "Private Agent",
+		IsPublic:    false,
+	})
+
+	e := echo.New()
+	body := `{"scopes": ["profile"]}`
+	req := httptest.NewRequest(http.MethodPost, "/me/agents/agent_private/install", strings.NewReader(body))
+	req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
+	rec := httptest.NewRecorder()
+
+	sessionCookie, csrfCookie, csrfToken := createInstallSessionCookies(t, sm, "user_install_priv")
+	req.AddCookie(sessionCookie)
+	req.AddCookie(csrfCookie)
+	req.Header.Set("X-CSRF-Token", csrfToken)
+
+	c := e.NewContext(req, rec)
+	c.SetParamNames("id")
+	c.SetParamValues("agent_private")
+
+	err := h.Install(c)
+	if err == nil {
+		t.Fatal("expected error for private agent")
+	}
+	httpErr := err.(*echo.HTTPError)
+	if httpErr.Code != http.StatusNotFound {
+		t.Errorf("expected status %d, got %d", http.StatusNotFound, httpErr.Code)
+	}
+}
+
+func TestInstallHandler_Uninstall_Success(t *testing.T) {
+	t.Skip("Uninstall uses GREATEST function not supported in SQLite")
+}
+
+func TestInstallHandler_UpdateScopes_Success(t *testing.T) {
+	h, sm, store, userStore := newTestInstallHandlerWithDB(t)
+	ctx := context.Background()
+
+	userStore.Create(ctx, &user.User{
+		ID:          "user_update_scopes",
+		Provider:    "google",
+		ProviderSub: "sub_update_scopes",
+	})
+
+	store.Create(ctx, &Agent{
+		ID:          "agent_scopes",
+		DeveloperID: "dev_1",
+		Name:        "Scopes Agent",
+		IsPublic:    true,
+	})
+
+	store.Install(ctx, &AgentInstall{
+		ID:            "inst_scopes",
+		UserID:        "user_update_scopes",
+		AgentID:       "agent_scopes",
+		GrantedScopes: []string{"profile"},
+	})
+
+	e := echo.New()
+	body := `{"scopes": ["profile", "email", "history"]}`
+	req := httptest.NewRequest(http.MethodPut, "/me/agents/agent_scopes/scopes", strings.NewReader(body))
+	req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
+	rec := httptest.NewRecorder()
+
+	sessionCookie, csrfCookie, csrfToken := createInstallSessionCookies(t, sm, "user_update_scopes")
+	req.AddCookie(sessionCookie)
+	req.AddCookie(csrfCookie)
+	req.Header.Set("X-CSRF-Token", csrfToken)
+
+	c := e.NewContext(req, rec)
+	c.SetParamNames("id")
+	c.SetParamValues("agent_scopes")
+
+	err := h.UpdateScopes(c)
+	if err != nil {
+		t.Fatalf("UpdateScopes() error = %v", err)
+	}
+	if rec.Code != http.StatusNoContent {
+		t.Errorf("expected status %d, got %d", http.StatusNoContent, rec.Code)
+	}
+}
+
+func TestInstallHandler_UpdateScopes_NotInstalled(t *testing.T) {
+	h, sm, store, userStore := newTestInstallHandlerWithDB(t)
+	ctx := context.Background()
+
+	userStore.Create(ctx, &user.User{
+		ID:          "user_no_inst",
+		Provider:    "google",
+		ProviderSub: "sub_no_inst",
+	})
+
+	store.Create(ctx, &Agent{
+		ID:          "agent_no_inst",
+		DeveloperID: "dev_1",
+		Name:        "Not Installed Agent",
+		IsPublic:    true,
+	})
+
+	e := echo.New()
+	body := `{"scopes": ["profile"]}`
+	req := httptest.NewRequest(http.MethodPut, "/me/agents/agent_no_inst/scopes", strings.NewReader(body))
+	req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
+	rec := httptest.NewRecorder()
+
+	sessionCookie, csrfCookie, csrfToken := createInstallSessionCookies(t, sm, "user_no_inst")
+	req.AddCookie(sessionCookie)
+	req.AddCookie(csrfCookie)
+	req.Header.Set("X-CSRF-Token", csrfToken)
+
+	c := e.NewContext(req, rec)
+	c.SetParamNames("id")
+	c.SetParamValues("agent_no_inst")
+
+	err := h.UpdateScopes(c)
+	if err == nil {
+		t.Fatal("expected error when agent not installed")
+	}
+	httpErr := err.(*echo.HTTPError)
+	if httpErr.Code != http.StatusNotFound {
+		t.Errorf("expected status %d, got %d", http.StatusNotFound, httpErr.Code)
+	}
+}
+
+func TestInstallHandler_Install_InvalidJSON(t *testing.T) {
+	h, sm, store, userStore := newTestInstallHandlerWithDB(t)
+	ctx := context.Background()
+
+	userStore.Create(ctx, &user.User{
+		ID:          "user_inst_invalid",
+		Provider:    "google",
+		ProviderSub: "sub_inst_invalid",
+	})
+
+	store.Create(ctx, &Agent{
+		ID:          "agent_inst_invalid",
+		DeveloperID: "other_dev",
+		Name:        "Agent For Invalid JSON",
+		IsPublic:    true,
+	})
+
+	e := echo.New()
+	body := `{invalid json}`
+	req := httptest.NewRequest(http.MethodPost, "/me/agents/agent_inst_invalid/install", strings.NewReader(body))
+	req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
+	rec := httptest.NewRecorder()
+
+	sessionCookie, csrfCookie, csrfToken := createInstallSessionCookies(t, sm, "user_inst_invalid")
+	req.AddCookie(sessionCookie)
+	req.AddCookie(csrfCookie)
+	req.Header.Set("X-CSRF-Token", csrfToken)
+
+	c := e.NewContext(req, rec)
+	c.SetParamNames("id")
+	c.SetParamValues("agent_inst_invalid")
+
+	err := h.Install(c)
+	if err == nil {
+		t.Fatal("expected error for invalid JSON")
+	}
+}
+
+func TestInstallHandler_UpdateScopes_InvalidJSON(t *testing.T) {
+	h, sm, store, userStore := newTestInstallHandlerWithDB(t)
+	ctx := context.Background()
+
+	userStore.Create(ctx, &user.User{
+		ID:          "user_scopes_invalid",
+		Provider:    "google",
+		ProviderSub: "sub_scopes_invalid",
+	})
+
+	store.Create(ctx, &Agent{
+		ID:          "agent_scopes_invalid",
+		DeveloperID: "dev_1",
+		Name:        "Scopes Agent Invalid",
+		IsPublic:    true,
+	})
+
+	store.Install(ctx, &AgentInstall{
+		ID:      "inst_scopes_inv",
+		UserID:  "user_scopes_invalid",
+		AgentID: "agent_scopes_invalid",
+	})
+
+	e := echo.New()
+	body := `{invalid json}`
+	req := httptest.NewRequest(http.MethodPut, "/me/agents/agent_scopes_invalid/scopes", strings.NewReader(body))
+	req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
+	rec := httptest.NewRecorder()
+
+	sessionCookie, csrfCookie, csrfToken := createInstallSessionCookies(t, sm, "user_scopes_invalid")
+	req.AddCookie(sessionCookie)
+	req.AddCookie(csrfCookie)
+	req.Header.Set("X-CSRF-Token", csrfToken)
+
+	c := e.NewContext(req, rec)
+	c.SetParamNames("id")
+	c.SetParamValues("agent_scopes_invalid")
+
+	err := h.UpdateScopes(c)
+	if err == nil {
+		t.Fatal("expected error for invalid JSON")
 	}
 }

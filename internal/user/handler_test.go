@@ -12,6 +12,9 @@ import (
 
 	"github.com/eleven-am/voice-backend/internal/dto"
 	"github.com/labstack/echo/v4"
+	"gorm.io/driver/sqlite"
+	"gorm.io/gorm"
+	gormlogger "gorm.io/gorm/logger"
 )
 
 func newTestHandler() (*Handler, *SessionManager) {
@@ -314,4 +317,430 @@ func (m *mockProvider) Exchange(ctx context.Context, code string) (*ProviderUser
 		Name:      "Mock User",
 		AvatarURL: "https://example.com/mock.png",
 	}, nil
+}
+
+func TestHandler_handleLogin(t *testing.T) {
+	h, _ := newTestHandler()
+	e := echo.New()
+
+	req := httptest.NewRequest(http.MethodGet, "/login", nil)
+	rec := httptest.NewRecorder()
+	c := e.NewContext(req, rec)
+
+	err := h.handleLogin(c, &mockProvider{})
+	if err != nil {
+		t.Fatalf("handleLogin failed: %v", err)
+	}
+
+	if rec.Code != http.StatusTemporaryRedirect {
+		t.Errorf("expected redirect status, got %d", rec.Code)
+	}
+
+	cookies := rec.Result().Cookies()
+	found := false
+	for _, cookie := range cookies {
+		if cookie.Name == "oauth_state" {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Error("oauth_state cookie should be set")
+	}
+}
+
+func TestHandler_handleLogin_NilProvider(t *testing.T) {
+	h, _ := newTestHandler()
+	e := echo.New()
+
+	req := httptest.NewRequest(http.MethodGet, "/login", nil)
+	rec := httptest.NewRecorder()
+	c := e.NewContext(req, rec)
+
+	err := h.handleLogin(c, nil)
+	if err == nil {
+		t.Fatal("expected error for nil provider")
+	}
+	httpErr := err.(*echo.HTTPError)
+	if httpErr.Code != http.StatusInternalServerError {
+		t.Errorf("expected 500, got %d", httpErr.Code)
+	}
+}
+
+func TestHandler_handleCallback_NilProvider(t *testing.T) {
+	h, _ := newTestHandler()
+	e := echo.New()
+
+	req := httptest.NewRequest(http.MethodGet, "/callback", nil)
+	rec := httptest.NewRecorder()
+	c := e.NewContext(req, rec)
+
+	err := h.handleCallback(c, nil)
+	if err == nil {
+		t.Fatal("expected error for nil provider")
+	}
+	httpErr := err.(*echo.HTTPError)
+	if httpErr.Code != http.StatusInternalServerError {
+		t.Errorf("expected 500, got %d", httpErr.Code)
+	}
+}
+
+func TestHandler_handleLogin_WithRedirectURI(t *testing.T) {
+	h, _ := newTestHandler()
+	e := echo.New()
+
+	req := httptest.NewRequest(http.MethodGet, "/login?redirect_uri=/dashboard", nil)
+	rec := httptest.NewRecorder()
+	c := e.NewContext(req, rec)
+
+	err := h.handleLogin(c, &mockProvider{})
+	if err != nil {
+		t.Fatalf("handleLogin failed: %v", err)
+	}
+
+	if rec.Code != http.StatusTemporaryRedirect {
+		t.Errorf("expected redirect status, got %d", rec.Code)
+	}
+}
+
+func TestHandler_handleCallback_InvalidStateSignature(t *testing.T) {
+	h, sm := newTestHandler()
+	e := echo.New()
+
+	state := "invalid.signature"
+	req := httptest.NewRequest(http.MethodGet, "/callback?state="+state+"&code=xyz", nil)
+	req.AddCookie(&http.Cookie{Name: "oauth_state", Value: state})
+	rec := httptest.NewRecorder()
+	c := e.NewContext(req, rec)
+
+	err := h.handleCallback(c, &mockProvider{})
+	if err == nil {
+		t.Fatal("expected error for invalid state signature")
+	}
+
+	_ = sm
+}
+
+func TestHandler_handleCallback_ExchangeError(t *testing.T) {
+	h, sm := newTestHandler()
+	e := echo.New()
+
+	state := sm.SignValue("random|")
+	req := httptest.NewRequest(http.MethodGet, "/callback?state="+state+"&code=xyz", nil)
+	req.AddCookie(&http.Cookie{Name: "oauth_state", Value: state})
+	rec := httptest.NewRecorder()
+	c := e.NewContext(req, rec)
+
+	provider := &mockProvider{
+		exchangeErr: echo.NewHTTPError(http.StatusInternalServerError, "exchange failed"),
+	}
+
+	err := h.handleCallback(c, provider)
+	if err == nil {
+		t.Fatal("expected error for exchange failure")
+	}
+}
+
+
+func TestHandler_Me_CSRFFailure(t *testing.T) {
+	h, sm := newTestHandler()
+	e := echo.New()
+
+	rec1 := httptest.NewRecorder()
+	c1 := e.NewContext(httptest.NewRequest(http.MethodGet, "/", nil), rec1)
+	sm.Create(c1, "user_123")
+
+	cookies := rec1.Result().Cookies()
+	var sessionCookie *http.Cookie
+	for _, cookie := range cookies {
+		if cookie.Name == sessionCookieName {
+			sessionCookie = cookie
+		}
+	}
+
+	req := httptest.NewRequest(http.MethodGet, "/auth/me", nil)
+	req.AddCookie(sessionCookie)
+	rec := httptest.NewRecorder()
+	c := e.NewContext(req, rec)
+
+	err := h.Me(c)
+	if err == nil {
+		t.Fatal("expected error for missing CSRF")
+	}
+}
+
+func newTestHandlerWithStore(t *testing.T) (*Handler, *SessionManager, *Store) {
+	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{
+		Logger: gormlogger.Default.LogMode(gormlogger.Silent),
+	})
+	if err != nil {
+		t.Fatalf("failed to open test database: %v", err)
+	}
+
+	store := NewStore(db)
+	store.Migrate()
+	sm := NewSessionManager([]byte("test-key"), false, "")
+	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
+	h := NewHandler(store, nil, nil, sm, []string{"myapp"}, logger)
+	return h, sm, store
+}
+
+func createSessionCookies(t *testing.T, sm *SessionManager, userID string) (sessionCookie, csrfCookie *http.Cookie, csrfToken string) {
+	e := echo.New()
+	rec := httptest.NewRecorder()
+	c := e.NewContext(httptest.NewRequest(http.MethodGet, "/", nil), rec)
+	sm.Create(c, userID)
+
+	cookies := rec.Result().Cookies()
+	for _, cookie := range cookies {
+		switch cookie.Name {
+		case sessionCookieName:
+			sessionCookie = cookie
+		case csrfCookieName:
+			csrfCookie = cookie
+			csrfToken = cookie.Value
+		}
+	}
+	return
+}
+
+func TestHandler_Me_Success(t *testing.T) {
+	h, sm, store := newTestHandlerWithStore(t)
+	ctx := context.Background()
+
+	user := &User{
+		ID:          "user_me_test",
+		Provider:    "google",
+		ProviderSub: "sub_me",
+		Email:       "me@example.com",
+		Name:        "Me User",
+		AvatarURL:   "https://example.com/me.png",
+		IsDeveloper: true,
+	}
+	store.Create(ctx, user)
+
+	sessionCookie, csrfCookie, csrfToken := createSessionCookies(t, sm, "user_me_test")
+
+	e := echo.New()
+	req := httptest.NewRequest(http.MethodGet, "/auth/me", nil)
+	req.AddCookie(sessionCookie)
+	req.AddCookie(csrfCookie)
+	req.Header.Set("X-CSRF-Token", csrfToken)
+	rec := httptest.NewRecorder()
+	c := e.NewContext(req, rec)
+
+	err := h.Me(c)
+	if err != nil {
+		t.Fatalf("Me failed: %v", err)
+	}
+
+	if rec.Code != http.StatusOK {
+		t.Errorf("expected 200, got %d", rec.Code)
+	}
+
+	var resp dto.MeResponse
+	if err := json.Unmarshal(rec.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("failed to unmarshal response: %v", err)
+	}
+
+	if resp.ID != "user_me_test" {
+		t.Errorf("expected user_me_test, got %s", resp.ID)
+	}
+	if resp.Email != "me@example.com" {
+		t.Errorf("expected me@example.com, got %s", resp.Email)
+	}
+	if !resp.IsDeveloper {
+		t.Error("expected IsDeveloper to be true")
+	}
+}
+
+func TestHandler_Me_UserNotFound(t *testing.T) {
+	h, sm, _ := newTestHandlerWithStore(t)
+
+	sessionCookie, csrfCookie, csrfToken := createSessionCookies(t, sm, "nonexistent_user")
+
+	e := echo.New()
+	req := httptest.NewRequest(http.MethodGet, "/auth/me", nil)
+	req.AddCookie(sessionCookie)
+	req.AddCookie(csrfCookie)
+	req.Header.Set("X-CSRF-Token", csrfToken)
+	rec := httptest.NewRecorder()
+	c := e.NewContext(req, rec)
+
+	err := h.Me(c)
+	if err == nil {
+		t.Fatal("expected error for nonexistent user")
+	}
+	httpErr := err.(*echo.HTTPError)
+	if httpErr.Code != http.StatusNotFound {
+		t.Errorf("expected 404, got %d", httpErr.Code)
+	}
+}
+
+func TestHandler_BecomeDeveloper_Success(t *testing.T) {
+	h, sm, store := newTestHandlerWithStore(t)
+	ctx := context.Background()
+
+	user := &User{
+		ID:          "user_dev_test",
+		Provider:    "google",
+		ProviderSub: "sub_dev",
+		IsDeveloper: false,
+	}
+	store.Create(ctx, user)
+
+	sessionCookie, csrfCookie, csrfToken := createSessionCookies(t, sm, "user_dev_test")
+
+	e := echo.New()
+	req := httptest.NewRequest(http.MethodPost, "/auth/me/developer", nil)
+	req.AddCookie(sessionCookie)
+	req.AddCookie(csrfCookie)
+	req.Header.Set("X-CSRF-Token", csrfToken)
+	rec := httptest.NewRecorder()
+	c := e.NewContext(req, rec)
+
+	err := h.BecomeDeveloper(c)
+	if err != nil {
+		t.Fatalf("BecomeDeveloper failed: %v", err)
+	}
+
+	if rec.Code != http.StatusNoContent {
+		t.Errorf("expected 204, got %d", rec.Code)
+	}
+
+	updated, _ := store.GetByID(ctx, "user_dev_test")
+	if !updated.IsDeveloper {
+		t.Error("user should be developer after call")
+	}
+}
+
+func TestHandler_BecomeDeveloper_UserNotFound(t *testing.T) {
+	h, sm, _ := newTestHandlerWithStore(t)
+
+	sessionCookie, csrfCookie, csrfToken := createSessionCookies(t, sm, "nonexistent_user")
+
+	e := echo.New()
+	req := httptest.NewRequest(http.MethodPost, "/auth/me/developer", nil)
+	req.AddCookie(sessionCookie)
+	req.AddCookie(csrfCookie)
+	req.Header.Set("X-CSRF-Token", csrfToken)
+	rec := httptest.NewRecorder()
+	c := e.NewContext(req, rec)
+
+	err := h.BecomeDeveloper(c)
+	if err == nil {
+		t.Fatal("expected error for nonexistent user")
+	}
+	httpErr := err.(*echo.HTTPError)
+	if httpErr.Code != http.StatusNotFound {
+		t.Errorf("expected 404, got %d", httpErr.Code)
+	}
+}
+
+func TestHandler_BecomeDeveloper_CSRFFailure(t *testing.T) {
+	h, sm, _ := newTestHandlerWithStore(t)
+
+	sessionCookie, _, _ := createSessionCookies(t, sm, "user_123")
+
+	e := echo.New()
+	req := httptest.NewRequest(http.MethodPost, "/auth/me/developer", nil)
+	req.AddCookie(sessionCookie)
+	rec := httptest.NewRecorder()
+	c := e.NewContext(req, rec)
+
+	err := h.BecomeDeveloper(c)
+	if err == nil {
+		t.Fatal("expected error for missing CSRF")
+	}
+}
+
+func TestHandler_Logout_Success(t *testing.T) {
+	h, sm, _ := newTestHandlerWithStore(t)
+
+	sessionCookie, csrfCookie, csrfToken := createSessionCookies(t, sm, "user_logout_test")
+
+	e := echo.New()
+	req := httptest.NewRequest(http.MethodPost, "/auth/logout", nil)
+	req.AddCookie(sessionCookie)
+	req.AddCookie(csrfCookie)
+	req.Header.Set("X-CSRF-Token", csrfToken)
+	rec := httptest.NewRecorder()
+	c := e.NewContext(req, rec)
+
+	err := h.Logout(c)
+	if err != nil {
+		t.Fatalf("Logout failed: %v", err)
+	}
+
+	if rec.Code != http.StatusNoContent {
+		t.Errorf("expected 204, got %d", rec.Code)
+	}
+
+	cookies := rec.Result().Cookies()
+	for _, cookie := range cookies {
+		if cookie.Name == sessionCookieName || cookie.Name == csrfCookieName {
+			if cookie.MaxAge != -1 {
+				t.Errorf("cookie %s should be cleared with MaxAge -1", cookie.Name)
+			}
+		}
+	}
+}
+
+func TestHandler_Logout_CSRFFailure(t *testing.T) {
+	h, sm, _ := newTestHandlerWithStore(t)
+
+	sessionCookie, _, _ := createSessionCookies(t, sm, "user_123")
+
+	e := echo.New()
+	req := httptest.NewRequest(http.MethodPost, "/auth/logout", nil)
+	req.AddCookie(sessionCookie)
+	rec := httptest.NewRecorder()
+	c := e.NewContext(req, rec)
+
+	err := h.Logout(c)
+	if err == nil {
+		t.Fatal("expected error for missing CSRF")
+	}
+}
+
+func TestHandler_handleCallback_Success(t *testing.T) {
+	h, sm, store := newTestHandlerWithStore(t)
+	e := echo.New()
+
+	state := sm.SignValue("random|/dashboard")
+	req := httptest.NewRequest(http.MethodGet, "/callback?state="+state+"&code=xyz", nil)
+	req.AddCookie(&http.Cookie{Name: "oauth_state", Value: state})
+	rec := httptest.NewRecorder()
+	c := e.NewContext(req, rec)
+
+	provider := &mockProvider{
+		user: &ProviderUser{
+			Sub:       "mock_sub_123",
+			Email:     "callback@example.com",
+			Name:      "Callback User",
+			AvatarURL: "https://example.com/callback.png",
+		},
+	}
+
+	err := h.handleCallback(c, provider)
+	if err != nil {
+		t.Fatalf("handleCallback failed: %v", err)
+	}
+
+	if rec.Code != http.StatusTemporaryRedirect {
+		t.Errorf("expected 307, got %d", rec.Code)
+	}
+
+	location := rec.Header().Get("Location")
+	if location != "/dashboard" {
+		t.Errorf("expected redirect to /dashboard, got %s", location)
+	}
+
+	user, err := store.GetByProvider(context.Background(), "mock", "mock_sub_123")
+	if err != nil {
+		t.Fatalf("user should be created: %v", err)
+	}
+	if user.Email != "callback@example.com" {
+		t.Errorf("expected callback@example.com, got %s", user.Email)
+	}
 }

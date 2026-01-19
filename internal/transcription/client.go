@@ -15,21 +15,30 @@ import (
 	"google.golang.org/grpc/metadata"
 )
 
+type reconnectState int
+
+const (
+	reconnectIdle reconnectState = iota
+	reconnectInProgress
+)
+
 type Client struct {
-	addr    string
-	conn    *grpc.ClientConn
-	client  sttpb.TranscriptionServiceClient
-	stream  sttpb.TranscriptionService_TranscribeClient
-	mu      sync.RWMutex
-	ctx     context.Context
-	cancel  context.CancelFunc
-	token   string
-	creds   grpc.DialOption
-	cb      Callbacks
-	opts    SessionOptions
-	readyCh chan struct{}
-	errCh   chan error
-	backoff BackoffConfig
+	addr           string
+	conn           *grpc.ClientConn
+	client         sttpb.TranscriptionServiceClient
+	stream         sttpb.TranscriptionService_TranscribeClient
+	mu             sync.RWMutex
+	ctx            context.Context
+	cancel         context.CancelFunc
+	token          string
+	creds          grpc.DialOption
+	cb             Callbacks
+	opts           SessionOptions
+	readyCh        chan struct{}
+	errCh          chan error
+	backoff        BackoffConfig
+	reconnectState reconnectState
+	reconnectCh    chan error
 }
 
 func New(cfg Config, opts SessionOptions, cb Callbacks) (*Client, error) {
@@ -43,16 +52,18 @@ func New(cfg Config, opts SessionOptions, cb Callbacks) (*Client, error) {
 	}
 
 	c := &Client{
-		addr:    cfg.Address,
-		ctx:     ctx,
-		cancel:  cancel,
-		token:   cfg.Token,
-		creds:   creds,
-		cb:      cb,
-		opts:    opts,
-		readyCh: make(chan struct{}),
-		errCh:   make(chan error, 1),
-		backoff: normalizeBackoff(cfg.Backoff),
+		addr:           cfg.Address,
+		ctx:            ctx,
+		cancel:         cancel,
+		token:          cfg.Token,
+		creds:          creds,
+		cb:             cb,
+		opts:           opts,
+		readyCh:        make(chan struct{}),
+		errCh:          make(chan error, 1),
+		backoff:        normalizeBackoff(cfg.Backoff),
+		reconnectState: reconnectIdle,
+		reconnectCh:    make(chan error, 1),
 	}
 
 	if err := c.connectAndStart(); err != nil {
@@ -242,17 +253,98 @@ func (c *Client) readLoop() {
 }
 
 func (c *Client) Reconnect() error {
+	c.mu.Lock()
+	if c.reconnectState == reconnectInProgress {
+		c.mu.Unlock()
+		return nil
+	}
+	c.reconnectState = reconnectInProgress
+	c.reconnectCh = make(chan error, 1)
+	c.mu.Unlock()
+
+	go c.reconnectLoop()
+	return nil
+}
+
+func (c *Client) ReconnectSync() error {
+	if err := c.Reconnect(); err != nil {
+		return err
+	}
+	return c.WaitReconnect(c.ctx)
+}
+
+func (c *Client) WaitReconnect(ctx context.Context) error {
+	c.mu.RLock()
+	ch := c.reconnectCh
+	c.mu.RUnlock()
+
+	select {
+	case err := <-ch:
+		return err
+	case <-ctx.Done():
+		return ctx.Err()
+	}
+}
+
+func (c *Client) IsReconnecting() bool {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+	return c.reconnectState == reconnectInProgress
+}
+
+func (c *Client) reconnectLoop() {
 	cfg := c.backoffConfig()
 	backoff := cfg.Initial
+
+	defer func() {
+		c.mu.Lock()
+		c.reconnectState = reconnectIdle
+		c.mu.Unlock()
+	}()
+
 	for attempts := 0; attempts < cfg.MaxAttempts; attempts++ {
+		select {
+		case <-c.ctx.Done():
+			c.notifyReconnect(c.ctx.Err())
+			return
+		default:
+		}
+
 		if err := c.connectAndStart(); err != nil {
-			time.Sleep(backoff)
+			slog.Warn("STT reconnect attempt failed",
+				"attempt", attempts+1,
+				"max_attempts", cfg.MaxAttempts,
+				"error", err)
+
+			select {
+			case <-c.ctx.Done():
+				c.notifyReconnect(c.ctx.Err())
+				return
+			case <-time.After(backoff):
+			}
 			backoff = minDuration(backoff*2, cfg.MaxDelay)
 			continue
 		}
-		return nil
+
+		slog.Info("STT reconnected successfully", "attempts", attempts+1)
+		c.notifyReconnect(nil)
+		return
 	}
-	return fmt.Errorf("reconnect failed")
+
+	err := fmt.Errorf("reconnect failed after %d attempts", cfg.MaxAttempts)
+	slog.Error("STT reconnect failed", "error", err)
+	c.notifyReconnect(err)
+}
+
+func (c *Client) notifyReconnect(err error) {
+	c.mu.RLock()
+	ch := c.reconnectCh
+	c.mu.RUnlock()
+
+	select {
+	case ch <- err:
+	default:
+	}
 }
 
 func (c *Client) Close() error {

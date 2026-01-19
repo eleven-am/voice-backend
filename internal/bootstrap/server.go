@@ -11,34 +11,44 @@ import (
 	"go.uber.org/fx"
 )
 
-var defaultCORSConfig = middleware.CORSConfig{
-	AllowOrigins: []string{"*"},
-	AllowMethods: []string{
-		http.MethodGet,
-		http.MethodHead,
-		http.MethodPut,
-		http.MethodPatch,
-		http.MethodPost,
-		http.MethodDelete,
-		http.MethodOptions,
-	},
-	AllowHeaders: []string{
-		"Accept",
-		"Authorization",
-		"Content-Type",
-		"X-Requested-With",
-		"X-CSRF-Token",
-	},
-	AllowCredentials: true,
-	MaxAge:           86400,
+func corsConfig(origins []string) middleware.CORSConfig {
+	cfg := middleware.CORSConfig{
+		AllowMethods: []string{
+			http.MethodGet,
+			http.MethodHead,
+			http.MethodPut,
+			http.MethodPatch,
+			http.MethodPost,
+			http.MethodDelete,
+			http.MethodOptions,
+		},
+		AllowHeaders: []string{
+			"Accept",
+			"Authorization",
+			"Content-Type",
+			"X-Requested-With",
+			"X-CSRF-Token",
+		},
+		MaxAge: 86400,
+	}
+
+	if len(origins) > 0 {
+		cfg.AllowOrigins = origins
+		cfg.AllowCredentials = true
+	} else {
+		cfg.AllowOrigins = []string{"*"}
+		cfg.AllowCredentials = false
+	}
+
+	return cfg
 }
 
-func NewEchoServer() *echo.Echo {
+func NewEchoServer(cfg *Config) *echo.Echo {
 	e := echo.New()
 	e.HideBanner = true
 	e.Use(middleware.Logger())
 	e.Use(middleware.Recover())
-	e.Use(middleware.CORSWithConfig(defaultCORSConfig))
+	e.Use(middleware.CORSWithConfig(corsConfig(cfg.CORSOrigins)))
 	return e
 }
 

@@ -1,6 +1,7 @@
 package agent
 
 import (
+	"context"
 	"encoding/json"
 	"io"
 	"log/slog"
@@ -14,6 +15,9 @@ import (
 	"github.com/eleven-am/voice-backend/internal/shared"
 	"github.com/eleven-am/voice-backend/internal/user"
 	"github.com/labstack/echo/v4"
+	"gorm.io/driver/sqlite"
+	"gorm.io/gorm"
+	gormlogger "gorm.io/gorm/logger"
 )
 
 func newTestMarketplaceHandler() (*MarketplaceHandler, *user.SessionManager) {
@@ -277,5 +281,386 @@ func TestCreateReviewRequest_JSON(t *testing.T) {
 	}
 	if req.Body != "Good experience" {
 		t.Errorf("expected body 'Good experience', got '%s'", req.Body)
+	}
+}
+
+func newTestMarketplaceHandlerWithDB(t *testing.T) (*MarketplaceHandler, *user.SessionManager, *Store, *user.Store) {
+	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{
+		Logger: gormlogger.Default.LogMode(gormlogger.Silent),
+	})
+	if err != nil {
+		t.Fatalf("failed to open test database: %v", err)
+	}
+
+	userStore := user.NewStore(db)
+	userStore.Migrate()
+
+	store := NewStore(db, nil)
+	store.Migrate()
+
+	sm := user.NewSessionManager([]byte("test-secret-key-32-bytes-long!!"), false, "")
+	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
+	h := NewMarketplaceHandler(store, sm, nil, logger)
+	return h, sm, store, userStore
+}
+
+func createMarketplaceSessionCookies(_ *testing.T, sm *user.SessionManager, userID string) (sessionCookie, csrfCookie *http.Cookie, csrfToken string) {
+	e := echo.New()
+	rec := httptest.NewRecorder()
+	c := e.NewContext(httptest.NewRequest(http.MethodGet, "/", nil), rec)
+	sm.Create(c, userID)
+
+	cookies := rec.Result().Cookies()
+	for _, cookie := range cookies {
+		if cookie.Name == "voice_session" {
+			sessionCookie = cookie
+		}
+		if cookie.Name == "voice_csrf" {
+			csrfCookie = cookie
+			csrfToken = cookie.Value
+		}
+	}
+	return
+}
+
+func TestMarketplaceHandler_List_Success(t *testing.T) {
+	h, _, store, _ := newTestMarketplaceHandlerWithDB(t)
+	ctx := context.Background()
+
+	store.Create(ctx, &Agent{
+		ID:          "agent_mp_1",
+		DeveloperID: "dev_1",
+		Name:        "Public Agent 1",
+		IsPublic:    true,
+	})
+	store.Create(ctx, &Agent{
+		ID:          "agent_mp_2",
+		DeveloperID: "dev_1",
+		Name:        "Public Agent 2",
+		IsPublic:    true,
+	})
+	store.Create(ctx, &Agent{
+		ID:          "agent_mp_private",
+		DeveloperID: "dev_1",
+		Name:        "Private Agent",
+		IsPublic:    false,
+	})
+
+	e := echo.New()
+	req := httptest.NewRequest(http.MethodGet, "/store/agents", nil)
+	rec := httptest.NewRecorder()
+	c := e.NewContext(req, rec)
+
+	err := h.List(c)
+	if err != nil {
+		t.Fatalf("List() error = %v", err)
+	}
+	if rec.Code != http.StatusOK {
+		t.Errorf("expected status %d, got %d", http.StatusOK, rec.Code)
+	}
+}
+
+func TestMarketplaceHandler_Get_Success(t *testing.T) {
+	h, _, store, _ := newTestMarketplaceHandlerWithDB(t)
+	ctx := context.Background()
+
+	store.Create(ctx, &Agent{
+		ID:          "agent_mp_get",
+		DeveloperID: "dev_1",
+		Name:        "Public Agent",
+		IsPublic:    true,
+	})
+
+	e := echo.New()
+	req := httptest.NewRequest(http.MethodGet, "/store/agents/agent_mp_get", nil)
+	rec := httptest.NewRecorder()
+	c := e.NewContext(req, rec)
+	c.SetParamNames("id")
+	c.SetParamValues("agent_mp_get")
+
+	err := h.Get(c)
+	if err != nil {
+		t.Fatalf("Get() error = %v", err)
+	}
+	if rec.Code != http.StatusOK {
+		t.Errorf("expected status %d, got %d", http.StatusOK, rec.Code)
+	}
+}
+
+func TestMarketplaceHandler_Get_NotFound(t *testing.T) {
+	h, _, _, _ := newTestMarketplaceHandlerWithDB(t)
+
+	e := echo.New()
+	req := httptest.NewRequest(http.MethodGet, "/store/agents/nonexistent", nil)
+	rec := httptest.NewRecorder()
+	c := e.NewContext(req, rec)
+	c.SetParamNames("id")
+	c.SetParamValues("nonexistent")
+
+	err := h.Get(c)
+	if err == nil {
+		t.Fatal("expected error for non-existent agent")
+	}
+	httpErr := err.(*echo.HTTPError)
+	if httpErr.Code != http.StatusNotFound {
+		t.Errorf("expected status %d, got %d", http.StatusNotFound, httpErr.Code)
+	}
+}
+
+func TestMarketplaceHandler_Get_NotPublic(t *testing.T) {
+	h, _, store, _ := newTestMarketplaceHandlerWithDB(t)
+	ctx := context.Background()
+
+	store.Create(ctx, &Agent{
+		ID:          "agent_private",
+		DeveloperID: "dev_1",
+		Name:        "Private Agent",
+		IsPublic:    false,
+	})
+
+	e := echo.New()
+	req := httptest.NewRequest(http.MethodGet, "/store/agents/agent_private", nil)
+	rec := httptest.NewRecorder()
+	c := e.NewContext(req, rec)
+	c.SetParamNames("id")
+	c.SetParamValues("agent_private")
+
+	err := h.Get(c)
+	if err == nil {
+		t.Fatal("expected error for private agent")
+	}
+	httpErr := err.(*echo.HTTPError)
+	if httpErr.Code != http.StatusNotFound {
+		t.Errorf("expected status %d, got %d", http.StatusNotFound, httpErr.Code)
+	}
+}
+
+func TestMarketplaceHandler_GetReviews_Success(t *testing.T) {
+	h, _, store, _ := newTestMarketplaceHandlerWithDB(t)
+	ctx := context.Background()
+
+	store.Create(ctx, &Agent{
+		ID:          "agent_reviews",
+		DeveloperID: "dev_1",
+		Name:        "Agent With Reviews",
+		IsPublic:    true,
+	})
+
+	store.CreateReview(ctx, &AgentReview{
+		ID:      "review_1",
+		AgentID: "agent_reviews",
+		UserID:  "user_1",
+		Rating:  5,
+		Body:    "Great agent!",
+	})
+	store.CreateReview(ctx, &AgentReview{
+		ID:      "review_2",
+		AgentID: "agent_reviews",
+		UserID:  "user_2",
+		Rating:  4,
+		Body:    "Good agent",
+	})
+
+	e := echo.New()
+	req := httptest.NewRequest(http.MethodGet, "/store/agents/agent_reviews/reviews", nil)
+	rec := httptest.NewRecorder()
+	c := e.NewContext(req, rec)
+	c.SetParamNames("id")
+	c.SetParamValues("agent_reviews")
+
+	err := h.GetReviews(c)
+	if err != nil {
+		t.Fatalf("GetReviews() error = %v", err)
+	}
+	if rec.Code != http.StatusOK {
+		t.Errorf("expected status %d, got %d", http.StatusOK, rec.Code)
+	}
+}
+
+func TestMarketplaceHandler_GetReviews_AgentNotFound(t *testing.T) {
+	h, _, _, _ := newTestMarketplaceHandlerWithDB(t)
+
+	e := echo.New()
+	req := httptest.NewRequest(http.MethodGet, "/store/agents/nonexistent/reviews", nil)
+	rec := httptest.NewRecorder()
+	c := e.NewContext(req, rec)
+	c.SetParamNames("id")
+	c.SetParamValues("nonexistent")
+
+	err := h.GetReviews(c)
+	if err == nil {
+		t.Fatal("expected error for non-existent agent")
+	}
+	httpErr := err.(*echo.HTTPError)
+	if httpErr.Code != http.StatusNotFound {
+		t.Errorf("expected status %d, got %d", http.StatusNotFound, httpErr.Code)
+	}
+}
+
+func TestMarketplaceHandler_CreateReview_Success(t *testing.T) {
+	h, sm, store, userStore := newTestMarketplaceHandlerWithDB(t)
+	ctx := context.Background()
+
+	userStore.Create(ctx, &user.User{
+		ID:          "user_reviewer",
+		Provider:    "google",
+		ProviderSub: "sub_reviewer",
+	})
+
+	store.Create(ctx, &Agent{
+		ID:          "agent_to_review",
+		DeveloperID: "other_dev",
+		Name:        "Agent To Review",
+		IsPublic:    true,
+	})
+
+	store.Install(ctx, &AgentInstall{
+		ID:      "install_review",
+		UserID:  "user_reviewer",
+		AgentID: "agent_to_review",
+	})
+
+	e := echo.New()
+	body := `{"rating": 5, "body": "Amazing agent!"}`
+	req := httptest.NewRequest(http.MethodPost, "/store/agents/agent_to_review/reviews", strings.NewReader(body))
+	req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
+	rec := httptest.NewRecorder()
+
+	sessionCookie, csrfCookie, csrfToken := createMarketplaceSessionCookies(t, sm, "user_reviewer")
+	req.AddCookie(sessionCookie)
+	req.AddCookie(csrfCookie)
+	req.Header.Set("X-CSRF-Token", csrfToken)
+
+	c := e.NewContext(req, rec)
+	c.SetParamNames("id")
+	c.SetParamValues("agent_to_review")
+
+	err := h.CreateReview(c)
+	if err != nil {
+		t.Fatalf("CreateReview() error = %v", err)
+	}
+	if rec.Code != http.StatusCreated {
+		t.Errorf("expected status %d, got %d", http.StatusCreated, rec.Code)
+	}
+}
+
+func TestMarketplaceHandler_CreateReview_NotInstalled(t *testing.T) {
+	h, sm, store, userStore := newTestMarketplaceHandlerWithDB(t)
+	ctx := context.Background()
+
+	userStore.Create(ctx, &user.User{
+		ID:          "user_no_install",
+		Provider:    "google",
+		ProviderSub: "sub_no_install",
+	})
+
+	store.Create(ctx, &Agent{
+		ID:          "agent_no_install",
+		DeveloperID: "other_dev",
+		Name:        "Agent Not Installed",
+		IsPublic:    true,
+	})
+
+	e := echo.New()
+	body := `{"rating": 5, "body": "Great!"}`
+	req := httptest.NewRequest(http.MethodPost, "/store/agents/agent_no_install/reviews", strings.NewReader(body))
+	req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
+	rec := httptest.NewRecorder()
+
+	sessionCookie, csrfCookie, csrfToken := createMarketplaceSessionCookies(t, sm, "user_no_install")
+	req.AddCookie(sessionCookie)
+	req.AddCookie(csrfCookie)
+	req.Header.Set("X-CSRF-Token", csrfToken)
+
+	c := e.NewContext(req, rec)
+	c.SetParamNames("id")
+	c.SetParamValues("agent_no_install")
+
+	err := h.CreateReview(c)
+	if err == nil {
+		t.Fatal("expected error when agent not installed")
+	}
+	httpErr := err.(*echo.HTTPError)
+	if httpErr.Code != http.StatusForbidden {
+		t.Errorf("expected status %d, got %d", http.StatusForbidden, httpErr.Code)
+	}
+}
+
+func TestMarketplaceHandler_CreateReview_InvalidJSON(t *testing.T) {
+	h, sm, store, userStore := newTestMarketplaceHandlerWithDB(t)
+	ctx := context.Background()
+
+	userStore.Create(ctx, &user.User{
+		ID:          "user_review_inv",
+		Provider:    "google",
+		ProviderSub: "sub_review_inv",
+	})
+
+	store.Create(ctx, &Agent{
+		ID:          "agent_review_inv",
+		DeveloperID: "other_dev",
+		Name:        "Review Invalid Agent",
+		IsPublic:    true,
+	})
+
+	store.Install(ctx, &AgentInstall{
+		ID:      "install_rev_inv",
+		UserID:  "user_review_inv",
+		AgentID: "agent_review_inv",
+	})
+
+	e := echo.New()
+	body := `{invalid}`
+	req := httptest.NewRequest(http.MethodPost, "/store/agents/agent_review_inv/reviews", strings.NewReader(body))
+	req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
+	rec := httptest.NewRecorder()
+
+	sessionCookie, csrfCookie, csrfToken := createMarketplaceSessionCookies(t, sm, "user_review_inv")
+	req.AddCookie(sessionCookie)
+	req.AddCookie(csrfCookie)
+	req.Header.Set("X-CSRF-Token", csrfToken)
+
+	c := e.NewContext(req, rec)
+	c.SetParamNames("id")
+	c.SetParamValues("agent_review_inv")
+
+	err := h.CreateReview(c)
+	if err == nil {
+		t.Fatal("expected error for invalid JSON")
+	}
+}
+
+func TestMarketplaceHandler_CreateReview_AgentNotFound(t *testing.T) {
+	h, sm, _, userStore := newTestMarketplaceHandlerWithDB(t)
+	ctx := context.Background()
+
+	userStore.Create(ctx, &user.User{
+		ID:          "user_review_anf",
+		Provider:    "google",
+		ProviderSub: "sub_review_anf",
+	})
+
+	e := echo.New()
+	body := `{"rating": 5, "body": "Great!"}`
+	req := httptest.NewRequest(http.MethodPost, "/store/agents/nonexistent/reviews", strings.NewReader(body))
+	req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
+	rec := httptest.NewRecorder()
+
+	sessionCookie, csrfCookie, csrfToken := createMarketplaceSessionCookies(t, sm, "user_review_anf")
+	req.AddCookie(sessionCookie)
+	req.AddCookie(csrfCookie)
+	req.Header.Set("X-CSRF-Token", csrfToken)
+
+	c := e.NewContext(req, rec)
+	c.SetParamNames("id")
+	c.SetParamValues("nonexistent")
+
+	err := h.CreateReview(c)
+	if err == nil {
+		t.Fatal("expected error for non-existent agent")
+	}
+	httpErr := err.(*echo.HTTPError)
+	if httpErr.Code != http.StatusNotFound {
+		t.Errorf("expected status %d, got %d", http.StatusNotFound, httpErr.Code)
 	}
 }

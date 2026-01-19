@@ -3,36 +3,104 @@ package gateway
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log/slog"
 	"sync"
+	"time"
 
 	"github.com/eleven-am/voice-backend/internal/transport"
 	"github.com/redis/go-redis/v9"
 )
 
+var ErrAgentAlreadyConnected = errors.New("agent already connected")
+
 const (
 	agentRequestChannel   = "agent:%s:requests"
 	sessionResponsePrefix = "session:%s:responses"
+
+	sessionSubTTL      = 30 * time.Minute
+	cleanupInterval    = 5 * time.Minute
+	maxSessionSubs     = 10000
 )
+
+type sessionSub struct {
+	cancel    context.CancelFunc
+	createdAt time.Time
+}
 
 type Bridge struct {
 	redis           *redis.Client
 	logger          *slog.Logger
 	agentConns      map[string]AgentConnection
 	agentCancels    map[string]context.CancelFunc
-	sessionSubs     map[string]context.CancelFunc
+	sessionSubs     map[string]*sessionSub
 	mu              sync.RWMutex
 	responseHandler func(sessionID string, msg *transport.AgentMessage)
+
+	ctx        context.Context
+	cancel     context.CancelFunc
+	cleanupWg  sync.WaitGroup
 }
 
 func NewBridge(redisClient *redis.Client, logger *slog.Logger) *Bridge {
-	return &Bridge{
+	ctx, cancel := context.WithCancel(context.Background())
+
+	b := &Bridge{
 		redis:        redisClient,
 		logger:       logger.With("component", "bridge"),
 		agentConns:   make(map[string]AgentConnection),
 		agentCancels: make(map[string]context.CancelFunc),
-		sessionSubs:  make(map[string]context.CancelFunc),
+		sessionSubs:  make(map[string]*sessionSub),
+		ctx:          ctx,
+		cancel:       cancel,
+	}
+
+	b.cleanupWg.Add(1)
+	go b.cleanupLoop()
+
+	return b
+}
+
+func (b *Bridge) cleanupLoop() {
+	defer b.cleanupWg.Done()
+
+	ticker := time.NewTicker(cleanupInterval)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-b.ctx.Done():
+			return
+		case <-ticker.C:
+			b.cleanupStaleSessions()
+		}
+	}
+}
+
+func (b *Bridge) cleanupStaleSessions() {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+
+	now := time.Now()
+	var stale []string
+
+	for sessionID, sub := range b.sessionSubs {
+		if now.Sub(sub.createdAt) > sessionSubTTL {
+			stale = append(stale, sessionID)
+		}
+	}
+
+	for _, sessionID := range stale {
+		if sub, ok := b.sessionSubs[sessionID]; ok {
+			sub.cancel()
+			delete(b.sessionSubs, sessionID)
+			b.logger.Debug("cleaned up stale session subscription", "session_id", sessionID)
+		}
+	}
+
+	if len(stale) > 0 {
+		b.logger.Info("cleaned up stale session subscriptions", "count", len(stale))
 	}
 }
 
@@ -42,22 +110,27 @@ func (b *Bridge) SetResponseHandler(handler func(sessionID string, msg *transpor
 	b.responseHandler = handler
 }
 
-func (b *Bridge) RegisterAgent(conn AgentConnection) {
+func (b *Bridge) RegisterAgent(conn AgentConnection) error {
 	b.mu.Lock()
 	defer b.mu.Unlock()
 
 	agentID := conn.AgentID()
 
+	if existing, exists := b.agentConns[agentID]; exists && existing.IsOnline() {
+		return ErrAgentAlreadyConnected
+	}
+
 	if cancel, exists := b.agentCancels[agentID]; exists {
 		cancel()
 	}
 
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(b.ctx)
 	b.agentConns[agentID] = conn
 	b.agentCancels[agentID] = cancel
 	b.logger.Info("agent registered", "agent_id", agentID)
 
 	go b.subscribeToAgentRequests(ctx, conn)
+	return nil
 }
 
 func (b *Bridge) UnregisterAgent(agentID string) {
@@ -79,18 +152,26 @@ func (b *Bridge) GetAgent(agentID string) (AgentConnection, bool) {
 	b.mu.RLock()
 	defer b.mu.RUnlock()
 	conn, ok := b.agentConns[agentID]
+	if !ok || !conn.IsOnline() {
+		return nil, false
+	}
 	return conn, ok
 }
 
-func (b *Bridge) GetOnlineAgents() []AgentInfo {
+func (b *Bridge) IsOnline(agentID string) bool {
+	_, ok := b.GetAgent(agentID)
+	return ok
+}
+
+func (b *Bridge) ListAgents() []AgentInfo {
 	b.mu.RLock()
 	defer b.mu.RUnlock()
 
 	var agents []AgentInfo
-	for _, conn := range b.agentConns {
+	for agentID, conn := range b.agentConns {
 		if conn.IsOnline() {
 			agents = append(agents, AgentInfo{
-				ID:     conn.AgentID(),
+				ID:     agentID,
 				Online: true,
 			})
 		}
@@ -134,28 +215,49 @@ func (b *Bridge) PublishResponse(ctx context.Context, msg *transport.AgentMessag
 	return nil
 }
 
-func (b *Bridge) SubscribeToSession(sessionID string) {
+func (b *Bridge) SubscribeToSession(sessionID string) error {
 	b.mu.Lock()
+	defer b.mu.Unlock()
+
 	if _, exists := b.sessionSubs[sessionID]; exists {
-		b.mu.Unlock()
-		return
+		return nil
 	}
 
-	ctx, cancel := context.WithCancel(context.Background())
-	b.sessionSubs[sessionID] = cancel
-	b.mu.Unlock()
+	if len(b.sessionSubs) >= maxSessionSubs {
+		return fmt.Errorf("max session subscriptions reached (%d)", maxSessionSubs)
+	}
+
+	ctx, cancel := context.WithCancel(b.ctx)
+	b.sessionSubs[sessionID] = &sessionSub{
+		cancel:    cancel,
+		createdAt: time.Now(),
+	}
 
 	go b.subscribeToSessionResponses(ctx, sessionID)
+	return nil
 }
 
 func (b *Bridge) UnsubscribeFromSession(sessionID string) {
 	b.mu.Lock()
 	defer b.mu.Unlock()
 
-	if cancel, ok := b.sessionSubs[sessionID]; ok {
-		cancel()
+	b.unsubscribeFromSessionLocked(sessionID)
+}
+
+func (b *Bridge) unsubscribeFromSessionLocked(sessionID string) {
+	if sub, ok := b.sessionSubs[sessionID]; ok {
+		sub.cancel()
 		delete(b.sessionSubs, sessionID)
 		b.logger.Debug("unsubscribed from session", "session_id", sessionID)
+	}
+}
+
+func (b *Bridge) RefreshSessionSubscription(sessionID string) {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+
+	if sub, ok := b.sessionSubs[sessionID]; ok {
+		sub.createdAt = time.Now()
 	}
 }
 
@@ -211,6 +313,12 @@ func (b *Bridge) subscribeToSessionResponses(ctx context.Context, sessionID stri
 
 	pubsub := b.redis.Subscribe(ctx, channel)
 	defer pubsub.Close()
+
+	defer func() {
+		b.mu.Lock()
+		delete(b.sessionSubs, sessionID)
+		b.mu.Unlock()
+	}()
 
 	b.logger.Debug("subscribed to session responses", "session_id", sessionID, "channel", channel)
 
@@ -294,7 +402,16 @@ func (b *Bridge) PublishCancellation(ctx context.Context, agentID, sessionID, re
 	return nil
 }
 
+func (b *Bridge) SessionSubCount() int {
+	b.mu.RLock()
+	defer b.mu.RUnlock()
+	return len(b.sessionSubs)
+}
+
 func (b *Bridge) Close() error {
+	b.cancel()
+	b.cleanupWg.Wait()
+
 	b.mu.Lock()
 	defer b.mu.Unlock()
 
@@ -307,8 +424,7 @@ func (b *Bridge) Close() error {
 		delete(b.agentConns, agentID)
 	}
 
-	for sessionID, cancel := range b.sessionSubs {
-		cancel()
+	for sessionID := range b.sessionSubs {
 		delete(b.sessionSubs, sessionID)
 	}
 

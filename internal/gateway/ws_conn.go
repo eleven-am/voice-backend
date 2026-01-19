@@ -4,10 +4,12 @@ import (
 	"context"
 	"encoding/json"
 	"log/slog"
+	"net/http"
 	"sync"
 	"time"
 
 	"github.com/gorilla/websocket"
+	"github.com/labstack/echo/v4"
 )
 
 const (
@@ -17,7 +19,13 @@ const (
 	maxMessageSize = 512 * 1024
 )
 
-type wsAgentConnection struct {
+var wsUpgrader = websocket.Upgrader{
+	ReadBufferSize:  1024,
+	WriteBufferSize: 1024,
+	CheckOrigin:     func(r *http.Request) bool { return true },
+}
+
+type WSAgentConnection struct {
 	ws       *websocket.Conn
 	agentID  string
 	ownerID  string
@@ -30,43 +38,43 @@ type wsAgentConnection struct {
 	done     chan struct{}
 }
 
-func newWSAgentConnection(ws *websocket.Conn, agentID, ownerID string, logger *slog.Logger) *wsAgentConnection {
-	return &wsAgentConnection{
+func NewWSAgentConnection(ws *websocket.Conn, agentID, ownerID string, logger *slog.Logger) *WSAgentConnection {
+	return &WSAgentConnection{
 		ws:       ws,
 		agentID:  agentID,
 		ownerID:  ownerID,
 		logger:   logger.With("agent_id", agentID),
-		send:     make(chan *GatewayMessage, 256),
-		messages: make(chan *GatewayMessage, 256),
+		send:     make(chan *GatewayMessage, 128),
+		messages: make(chan *GatewayMessage, 128),
 		done:     make(chan struct{}),
 	}
 }
 
-func (c *wsAgentConnection) AgentID() string {
+func (c *WSAgentConnection) AgentID() string {
 	return c.agentID
 }
 
-func (c *wsAgentConnection) SessionID() string {
+func (c *WSAgentConnection) SessionID() string {
 	return ""
 }
 
-func (c *wsAgentConnection) UserID() string {
+func (c *WSAgentConnection) UserID() string {
 	return c.ownerID
 }
 
-func (c *wsAgentConnection) SetOnline(online bool) {
+func (c *WSAgentConnection) SetOnline(online bool) {
 	c.mu.Lock()
 	c.online = online
 	c.mu.Unlock()
 }
 
-func (c *wsAgentConnection) IsOnline() bool {
+func (c *WSAgentConnection) IsOnline() bool {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
 	return c.online
 }
 
-func (c *wsAgentConnection) Send(_ context.Context, msg *GatewayMessage) error {
+func (c *WSAgentConnection) Send(_ context.Context, msg *GatewayMessage) error {
 	c.mu.RLock()
 	if c.closed {
 		c.mu.RUnlock()
@@ -83,11 +91,11 @@ func (c *wsAgentConnection) Send(_ context.Context, msg *GatewayMessage) error {
 	}
 }
 
-func (c *wsAgentConnection) Messages() <-chan *GatewayMessage {
+func (c *WSAgentConnection) Messages() <-chan *GatewayMessage {
 	return c.messages
 }
 
-func (c *wsAgentConnection) Close() error {
+func (c *WSAgentConnection) Close() error {
 	c.mu.Lock()
 	if c.closed {
 		c.mu.Unlock()
@@ -101,7 +109,7 @@ func (c *wsAgentConnection) Close() error {
 	return c.ws.Close()
 }
 
-func (c *wsAgentConnection) readPump(bridge *Bridge) {
+func (c *WSAgentConnection) readPump(ctx context.Context, bridge *Bridge) {
 	defer func() {
 		c.Close()
 	}()
@@ -114,6 +122,14 @@ func (c *wsAgentConnection) readPump(bridge *Bridge) {
 	})
 
 	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-c.done:
+			return
+		default:
+		}
+
 		_, message, err := c.ws.ReadMessage()
 		if err != nil {
 			if websocket.IsUnexpectedCloseError(err, websocket.CloseGoingAway, websocket.CloseAbnormalClosure) {
@@ -131,20 +147,22 @@ func (c *wsAgentConnection) readPump(bridge *Bridge) {
 		msg.AgentID = c.agentID
 
 		if msg.Type == MessageTypeResponse && msg.SessionID != "" {
-			if err := bridge.PublishResponse(context.Background(), &msg); err != nil {
+			if err := bridge.PublishResponse(ctx, &msg); err != nil {
 				c.logger.Error("failed to publish response", "error", err)
 			}
 		}
 
 		select {
 		case c.messages <- &msg:
+		case <-ctx.Done():
+			return
 		default:
 			c.logger.Warn("message buffer full, dropping message")
 		}
 	}
 }
 
-func (c *wsAgentConnection) writePump() {
+func (c *WSAgentConnection) writePump(ctx context.Context) {
 	ticker := time.NewTicker(pingPeriod)
 	defer func() {
 		ticker.Stop()
@@ -153,6 +171,8 @@ func (c *wsAgentConnection) writePump() {
 
 	for {
 		select {
+		case <-ctx.Done():
+			return
 		case msg, ok := <-c.send:
 			_ = c.ws.SetWriteDeadline(time.Now().Add(writeWait))
 			if !ok {
@@ -181,4 +201,34 @@ func (c *wsAgentConnection) writePump() {
 			return
 		}
 	}
+}
+
+func (h *AgentHandler) handleWebSocket(c echo.Context) error {
+	key := GetAPIKey(c)
+	agentID := key.OwnerID
+
+	ws, err := wsUpgrader.Upgrade(c.Response(), c.Request(), nil)
+	if err != nil {
+		h.logger.Error("websocket upgrade failed", "error", err)
+		return err
+	}
+
+	conn := NewWSAgentConnection(ws, agentID, key.OwnerID, h.logger)
+
+	if err := h.bridge.RegisterAgent(conn); err != nil {
+		h.logger.Error("failed to register agent", "error", err)
+		_ = ws.Close()
+		return nil
+	}
+
+	h.logger.Info("agent connected (WebSocket)", "agent_id", agentID, "owner_id", key.OwnerID)
+
+	ctx := c.Request().Context()
+	go conn.writePump(ctx)
+	conn.readPump(ctx, h.bridge)
+
+	h.bridge.UnregisterAgent(agentID)
+
+	h.logger.Info("agent disconnected (WebSocket)", "agent_id", agentID)
+	return nil
 }

@@ -16,19 +16,14 @@ func ProvideAuthenticator(store *apikey.Store) *Authenticator {
 	return NewAuthenticator(store)
 }
 
-func ProvideAgentRegistry() *AgentRegistry {
-	return NewAgentRegistry()
-}
-
-func ProvideAgentHandler(auth *Authenticator, registry *AgentRegistry, bridge *Bridge, logger *slog.Logger) *AgentHandler {
-	return NewAgentHandler(auth, registry, bridge, logger)
+func ProvideAgentHandler(auth *Authenticator, bridge *Bridge, logger *slog.Logger) *AgentHandler {
+	return NewAgentHandler(auth, bridge, logger)
 }
 
 var Module = fx.Options(
 	fx.Provide(
 		ProvideBridge,
 		ProvideAuthenticator,
-		ProvideAgentRegistry,
 		ProvideAgentHandler,
 	),
 )

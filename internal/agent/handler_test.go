@@ -1,6 +1,7 @@
 package agent
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"io"
@@ -14,6 +15,9 @@ import (
 	"github.com/eleven-am/voice-backend/internal/shared"
 	"github.com/eleven-am/voice-backend/internal/user"
 	"github.com/labstack/echo/v4"
+	"gorm.io/driver/sqlite"
+	"gorm.io/gorm"
+	gormlogger "gorm.io/gorm/logger"
 )
 
 func newTestAgentHandler() (*Handler, *user.SessionManager) {
@@ -313,5 +317,640 @@ func TestAgentResponse_JSON(t *testing.T) {
 	}
 	if !strings.Contains(jsonStr, `"total_installs":1000`) {
 		t.Error("expected JSON to contain total_installs")
+	}
+}
+
+func newTestHandlerWithDB(t *testing.T) (*Handler, *user.SessionManager, *Store, *user.Store) {
+	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{
+		Logger: gormlogger.Default.LogMode(gormlogger.Silent),
+	})
+	if err != nil {
+		t.Fatalf("failed to open test database: %v", err)
+	}
+
+	userStore := user.NewStore(db)
+	userStore.Migrate()
+
+	store := NewStore(db, nil)
+	store.Migrate()
+
+	sm := user.NewSessionManager([]byte("test-secret-key-32-bytes-long!!"), false, "")
+	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
+	h := NewHandler(store, userStore, sm, nil, logger)
+	return h, sm, store, userStore
+}
+
+func createAgentSessionCookies(_ *testing.T, sm *user.SessionManager, userID string) (sessionCookie, csrfCookie *http.Cookie, csrfToken string) {
+	e := echo.New()
+	rec := httptest.NewRecorder()
+	c := e.NewContext(httptest.NewRequest(http.MethodGet, "/", nil), rec)
+	sm.Create(c, userID)
+
+	cookies := rec.Result().Cookies()
+	for _, cookie := range cookies {
+		if cookie.Name == "voice_session" {
+			sessionCookie = cookie
+		}
+		if cookie.Name == "voice_csrf" {
+			csrfCookie = cookie
+			csrfToken = cookie.Value
+		}
+	}
+	return
+}
+
+func TestHandler_List_Success(t *testing.T) {
+	h, sm, store, userStore := newTestHandlerWithDB(t)
+	ctx := context.Background()
+
+	userStore.Create(ctx, &user.User{
+		ID:          "user_list",
+		Provider:    "google",
+		ProviderSub: "sub_list",
+		IsDeveloper: true,
+	})
+
+	store.Create(ctx, &Agent{
+		ID:          "agent_1",
+		DeveloperID: "user_list",
+		Name:        "Agent 1",
+	})
+	store.Create(ctx, &Agent{
+		ID:          "agent_2",
+		DeveloperID: "user_list",
+		Name:        "Agent 2",
+	})
+
+	e := echo.New()
+	req := httptest.NewRequest(http.MethodGet, "/agents", nil)
+	rec := httptest.NewRecorder()
+
+	sessionCookie, csrfCookie, csrfToken := createAgentSessionCookies(t, sm, "user_list")
+	req.AddCookie(sessionCookie)
+	req.AddCookie(csrfCookie)
+	req.Header.Set("X-CSRF-Token", csrfToken)
+
+	c := e.NewContext(req, rec)
+
+	err := h.List(c)
+	if err != nil {
+		t.Fatalf("List() error = %v", err)
+	}
+	if rec.Code != http.StatusOK {
+		t.Errorf("expected status %d, got %d", http.StatusOK, rec.Code)
+	}
+}
+
+func TestHandler_List_NotDeveloper(t *testing.T) {
+	h, sm, _, userStore := newTestHandlerWithDB(t)
+	ctx := context.Background()
+
+	userStore.Create(ctx, &user.User{
+		ID:          "user_not_dev",
+		Provider:    "google",
+		ProviderSub: "sub_not_dev",
+		IsDeveloper: false,
+	})
+
+	e := echo.New()
+	req := httptest.NewRequest(http.MethodGet, "/agents", nil)
+	rec := httptest.NewRecorder()
+
+	sessionCookie, csrfCookie, csrfToken := createAgentSessionCookies(t, sm, "user_not_dev")
+	req.AddCookie(sessionCookie)
+	req.AddCookie(csrfCookie)
+	req.Header.Set("X-CSRF-Token", csrfToken)
+
+	c := e.NewContext(req, rec)
+
+	err := h.List(c)
+	if err == nil {
+		t.Fatal("expected error for non-developer")
+	}
+	httpErr := err.(*echo.HTTPError)
+	if httpErr.Code != http.StatusForbidden {
+		t.Errorf("expected status %d, got %d", http.StatusForbidden, httpErr.Code)
+	}
+}
+
+func TestHandler_Create_Success(t *testing.T) {
+	h, sm, _, userStore := newTestHandlerWithDB(t)
+	ctx := context.Background()
+
+	userStore.Create(ctx, &user.User{
+		ID:          "user_create",
+		Provider:    "google",
+		ProviderSub: "sub_create",
+		IsDeveloper: true,
+	})
+
+	e := echo.New()
+	body := `{"name":"New Agent","description":"A new agent","category":"assistant"}`
+	req := httptest.NewRequest(http.MethodPost, "/agents", strings.NewReader(body))
+	req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
+	rec := httptest.NewRecorder()
+
+	sessionCookie, csrfCookie, csrfToken := createAgentSessionCookies(t, sm, "user_create")
+	req.AddCookie(sessionCookie)
+	req.AddCookie(csrfCookie)
+	req.Header.Set("X-CSRF-Token", csrfToken)
+
+	c := e.NewContext(req, rec)
+
+	err := h.Create(c)
+	if err != nil {
+		t.Fatalf("Create() error = %v", err)
+	}
+	if rec.Code != http.StatusCreated {
+		t.Errorf("expected status %d, got %d", http.StatusCreated, rec.Code)
+	}
+}
+
+func TestHandler_Create_InvalidJSON(t *testing.T) {
+	h, sm, _, userStore := newTestHandlerWithDB(t)
+	ctx := context.Background()
+
+	userStore.Create(ctx, &user.User{
+		ID:          "user_create_invalid",
+		Provider:    "google",
+		ProviderSub: "sub_create_invalid",
+		IsDeveloper: true,
+	})
+
+	e := echo.New()
+	body := `{invalid json}`
+	req := httptest.NewRequest(http.MethodPost, "/agents", strings.NewReader(body))
+	req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
+	rec := httptest.NewRecorder()
+
+	sessionCookie, csrfCookie, csrfToken := createAgentSessionCookies(t, sm, "user_create_invalid")
+	req.AddCookie(sessionCookie)
+	req.AddCookie(csrfCookie)
+	req.Header.Set("X-CSRF-Token", csrfToken)
+
+	c := e.NewContext(req, rec)
+
+	err := h.Create(c)
+	if err == nil {
+		t.Fatal("expected error for invalid JSON")
+	}
+}
+
+func TestHandler_Get_Success(t *testing.T) {
+	h, sm, store, userStore := newTestHandlerWithDB(t)
+	ctx := context.Background()
+
+	userStore.Create(ctx, &user.User{
+		ID:          "user_get",
+		Provider:    "google",
+		ProviderSub: "sub_get",
+		IsDeveloper: true,
+	})
+
+	store.Create(ctx, &Agent{
+		ID:          "agent_get",
+		DeveloperID: "user_get",
+		Name:        "Get Test Agent",
+	})
+
+	e := echo.New()
+	req := httptest.NewRequest(http.MethodGet, "/agents/agent_get", nil)
+	rec := httptest.NewRecorder()
+
+	sessionCookie, csrfCookie, csrfToken := createAgentSessionCookies(t, sm, "user_get")
+	req.AddCookie(sessionCookie)
+	req.AddCookie(csrfCookie)
+	req.Header.Set("X-CSRF-Token", csrfToken)
+
+	c := e.NewContext(req, rec)
+	c.SetParamNames("id")
+	c.SetParamValues("agent_get")
+
+	err := h.Get(c)
+	if err != nil {
+		t.Fatalf("Get() error = %v", err)
+	}
+	if rec.Code != http.StatusOK {
+		t.Errorf("expected status %d, got %d", http.StatusOK, rec.Code)
+	}
+}
+
+func TestHandler_Get_NotFound(t *testing.T) {
+	h, sm, _, userStore := newTestHandlerWithDB(t)
+	ctx := context.Background()
+
+	userStore.Create(ctx, &user.User{
+		ID:          "user_get_nf",
+		Provider:    "google",
+		ProviderSub: "sub_get_nf",
+		IsDeveloper: true,
+	})
+
+	e := echo.New()
+	req := httptest.NewRequest(http.MethodGet, "/agents/nonexistent", nil)
+	rec := httptest.NewRecorder()
+
+	sessionCookie, csrfCookie, csrfToken := createAgentSessionCookies(t, sm, "user_get_nf")
+	req.AddCookie(sessionCookie)
+	req.AddCookie(csrfCookie)
+	req.Header.Set("X-CSRF-Token", csrfToken)
+
+	c := e.NewContext(req, rec)
+	c.SetParamNames("id")
+	c.SetParamValues("nonexistent")
+
+	err := h.Get(c)
+	if err == nil {
+		t.Fatal("expected error for non-existent agent")
+	}
+	httpErr := err.(*echo.HTTPError)
+	if httpErr.Code != http.StatusNotFound {
+		t.Errorf("expected status %d, got %d", http.StatusNotFound, httpErr.Code)
+	}
+}
+
+func TestHandler_Get_NotOwner(t *testing.T) {
+	h, sm, store, userStore := newTestHandlerWithDB(t)
+	ctx := context.Background()
+
+	userStore.Create(ctx, &user.User{
+		ID:          "user_owner",
+		Provider:    "google",
+		ProviderSub: "sub_owner",
+		IsDeveloper: true,
+	})
+	userStore.Create(ctx, &user.User{
+		ID:          "user_other",
+		Provider:    "google",
+		ProviderSub: "sub_other",
+		IsDeveloper: true,
+	})
+
+	store.Create(ctx, &Agent{
+		ID:          "agent_owned",
+		DeveloperID: "user_owner",
+		Name:        "Owned Agent",
+	})
+
+	e := echo.New()
+	req := httptest.NewRequest(http.MethodGet, "/agents/agent_owned", nil)
+	rec := httptest.NewRecorder()
+
+	sessionCookie, csrfCookie, csrfToken := createAgentSessionCookies(t, sm, "user_other")
+	req.AddCookie(sessionCookie)
+	req.AddCookie(csrfCookie)
+	req.Header.Set("X-CSRF-Token", csrfToken)
+
+	c := e.NewContext(req, rec)
+	c.SetParamNames("id")
+	c.SetParamValues("agent_owned")
+
+	err := h.Get(c)
+	if err == nil {
+		t.Fatal("expected error for non-owner")
+	}
+	httpErr := err.(*echo.HTTPError)
+	if httpErr.Code != http.StatusForbidden {
+		t.Errorf("expected status %d, got %d", http.StatusForbidden, httpErr.Code)
+	}
+}
+
+func TestHandler_Delete_Success(t *testing.T) {
+	h, sm, store, userStore := newTestHandlerWithDB(t)
+	ctx := context.Background()
+
+	userStore.Create(ctx, &user.User{
+		ID:          "user_delete",
+		Provider:    "google",
+		ProviderSub: "sub_delete",
+		IsDeveloper: true,
+	})
+
+	store.Create(ctx, &Agent{
+		ID:          "agent_delete",
+		DeveloperID: "user_delete",
+		Name:        "Delete Test Agent",
+	})
+
+	e := echo.New()
+	req := httptest.NewRequest(http.MethodDelete, "/agents/agent_delete", nil)
+	rec := httptest.NewRecorder()
+
+	sessionCookie, csrfCookie, csrfToken := createAgentSessionCookies(t, sm, "user_delete")
+	req.AddCookie(sessionCookie)
+	req.AddCookie(csrfCookie)
+	req.Header.Set("X-CSRF-Token", csrfToken)
+
+	c := e.NewContext(req, rec)
+	c.SetParamNames("id")
+	c.SetParamValues("agent_delete")
+
+	err := h.Delete(c)
+	if err != nil {
+		t.Fatalf("Delete() error = %v", err)
+	}
+	if rec.Code != http.StatusNoContent {
+		t.Errorf("expected status %d, got %d", http.StatusNoContent, rec.Code)
+	}
+}
+
+func TestHandler_Publish_Success(t *testing.T) {
+	h, sm, store, userStore := newTestHandlerWithDB(t)
+	ctx := context.Background()
+
+	userStore.Create(ctx, &user.User{
+		ID:          "user_publish",
+		Provider:    "google",
+		ProviderSub: "sub_publish",
+		IsDeveloper: true,
+	})
+
+	store.Create(ctx, &Agent{
+		ID:          "agent_publish",
+		DeveloperID: "user_publish",
+		Name:        "Publish Test Agent",
+		IsPublic:    false,
+	})
+
+	e := echo.New()
+	req := httptest.NewRequest(http.MethodPost, "/agents/agent_publish/publish", nil)
+	rec := httptest.NewRecorder()
+
+	sessionCookie, csrfCookie, csrfToken := createAgentSessionCookies(t, sm, "user_publish")
+	req.AddCookie(sessionCookie)
+	req.AddCookie(csrfCookie)
+	req.Header.Set("X-CSRF-Token", csrfToken)
+
+	c := e.NewContext(req, rec)
+	c.SetParamNames("id")
+	c.SetParamValues("agent_publish")
+
+	err := h.Publish(c)
+	if err != nil {
+		t.Fatalf("Publish() error = %v", err)
+	}
+	if rec.Code != http.StatusOK {
+		t.Errorf("expected status %d, got %d", http.StatusOK, rec.Code)
+	}
+}
+
+func TestHandler_Update_Success(t *testing.T) {
+	h, sm, store, userStore := newTestHandlerWithDB(t)
+	ctx := context.Background()
+
+	userStore.Create(ctx, &user.User{
+		ID:          "user_update",
+		Provider:    "google",
+		ProviderSub: "sub_update",
+		IsDeveloper: true,
+	})
+
+	store.Create(ctx, &Agent{
+		ID:          "agent_update",
+		DeveloperID: "user_update",
+		Name:        "Original Name",
+	})
+
+	e := echo.New()
+	body := `{"name":"Updated Name"}`
+	req := httptest.NewRequest(http.MethodPut, "/agents/agent_update", strings.NewReader(body))
+	req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
+	rec := httptest.NewRecorder()
+
+	sessionCookie, csrfCookie, csrfToken := createAgentSessionCookies(t, sm, "user_update")
+	req.AddCookie(sessionCookie)
+	req.AddCookie(csrfCookie)
+	req.Header.Set("X-CSRF-Token", csrfToken)
+
+	c := e.NewContext(req, rec)
+	c.SetParamNames("id")
+	c.SetParamValues("agent_update")
+
+	err := h.Update(c)
+	if err != nil {
+		t.Fatalf("Update() error = %v", err)
+	}
+	if rec.Code != http.StatusOK {
+		t.Errorf("expected status %d, got %d", http.StatusOK, rec.Code)
+	}
+}
+
+func TestHandler_ReplyToReview_Success(t *testing.T) {
+	t.Skip("ReplyToReview uses NOW() function not supported in SQLite")
+}
+
+func TestHandler_ReplyToReview_InvalidJSON(t *testing.T) {
+	h, sm, store, userStore := newTestHandlerWithDB(t)
+	ctx := context.Background()
+
+	userStore.Create(ctx, &user.User{
+		ID:          "user_reply_invalid",
+		Provider:    "google",
+		ProviderSub: "sub_reply_invalid",
+		IsDeveloper: true,
+	})
+
+	store.Create(ctx, &Agent{
+		ID:          "agent_reply_invalid",
+		DeveloperID: "user_reply_invalid",
+		Name:        "Reply Invalid Agent",
+	})
+
+	e := echo.New()
+	body := `{invalid json}`
+	req := httptest.NewRequest(http.MethodPost, "/agents/agent_reply_invalid/reviews/review_id/reply", strings.NewReader(body))
+	req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
+	rec := httptest.NewRecorder()
+
+	sessionCookie, csrfCookie, csrfToken := createAgentSessionCookies(t, sm, "user_reply_invalid")
+	req.AddCookie(sessionCookie)
+	req.AddCookie(csrfCookie)
+	req.Header.Set("X-CSRF-Token", csrfToken)
+
+	c := e.NewContext(req, rec)
+	c.SetParamNames("id", "review_id")
+	c.SetParamValues("agent_reply_invalid", "review_id")
+
+	err := h.ReplyToReview(c)
+	if err == nil {
+		t.Fatal("expected error for invalid JSON")
+	}
+}
+
+func TestHandler_ReplyToReview_AgentNotFound(t *testing.T) {
+	h, sm, _, userStore := newTestHandlerWithDB(t)
+	ctx := context.Background()
+
+	userStore.Create(ctx, &user.User{
+		ID:          "user_reply_nf",
+		Provider:    "google",
+		ProviderSub: "sub_reply_nf",
+		IsDeveloper: true,
+	})
+
+	e := echo.New()
+	body := `{"reply":"Thank you!"}`
+	req := httptest.NewRequest(http.MethodPost, "/agents/nonexistent/reviews/review_id/reply", strings.NewReader(body))
+	req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
+	rec := httptest.NewRecorder()
+
+	sessionCookie, csrfCookie, csrfToken := createAgentSessionCookies(t, sm, "user_reply_nf")
+	req.AddCookie(sessionCookie)
+	req.AddCookie(csrfCookie)
+	req.Header.Set("X-CSRF-Token", csrfToken)
+
+	c := e.NewContext(req, rec)
+	c.SetParamNames("id", "review_id")
+	c.SetParamValues("nonexistent", "review_id")
+
+	err := h.ReplyToReview(c)
+	if err == nil {
+		t.Fatal("expected error for non-existent agent")
+	}
+	httpErr := err.(*echo.HTTPError)
+	if httpErr.Code != http.StatusNotFound {
+		t.Errorf("expected status %d, got %d", http.StatusNotFound, httpErr.Code)
+	}
+}
+
+func TestHandler_Delete_NotFound(t *testing.T) {
+	h, sm, _, userStore := newTestHandlerWithDB(t)
+	ctx := context.Background()
+
+	userStore.Create(ctx, &user.User{
+		ID:          "user_delete_nf",
+		Provider:    "google",
+		ProviderSub: "sub_delete_nf",
+		IsDeveloper: true,
+	})
+
+	e := echo.New()
+	req := httptest.NewRequest(http.MethodDelete, "/agents/nonexistent", nil)
+	rec := httptest.NewRecorder()
+
+	sessionCookie, csrfCookie, csrfToken := createAgentSessionCookies(t, sm, "user_delete_nf")
+	req.AddCookie(sessionCookie)
+	req.AddCookie(csrfCookie)
+	req.Header.Set("X-CSRF-Token", csrfToken)
+
+	c := e.NewContext(req, rec)
+	c.SetParamNames("id")
+	c.SetParamValues("nonexistent")
+
+	err := h.Delete(c)
+	if err == nil {
+		t.Fatal("expected error for non-existent agent")
+	}
+	httpErr := err.(*echo.HTTPError)
+	if httpErr.Code != http.StatusNotFound {
+		t.Errorf("expected status %d, got %d", http.StatusNotFound, httpErr.Code)
+	}
+}
+
+func TestHandler_Update_InvalidJSON(t *testing.T) {
+	h, sm, store, userStore := newTestHandlerWithDB(t)
+	ctx := context.Background()
+
+	userStore.Create(ctx, &user.User{
+		ID:          "user_update_inv",
+		Provider:    "google",
+		ProviderSub: "sub_update_inv",
+		IsDeveloper: true,
+	})
+
+	store.Create(ctx, &Agent{
+		ID:          "agent_update_inv",
+		DeveloperID: "user_update_inv",
+		Name:        "Update Invalid",
+	})
+
+	e := echo.New()
+	body := `{invalid}`
+	req := httptest.NewRequest(http.MethodPut, "/agents/agent_update_inv", strings.NewReader(body))
+	req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
+	rec := httptest.NewRecorder()
+
+	sessionCookie, csrfCookie, csrfToken := createAgentSessionCookies(t, sm, "user_update_inv")
+	req.AddCookie(sessionCookie)
+	req.AddCookie(csrfCookie)
+	req.Header.Set("X-CSRF-Token", csrfToken)
+
+	c := e.NewContext(req, rec)
+	c.SetParamNames("id")
+	c.SetParamValues("agent_update_inv")
+
+	err := h.Update(c)
+	if err == nil {
+		t.Fatal("expected error for invalid JSON")
+	}
+}
+
+func TestHandler_Update_NotFound(t *testing.T) {
+	h, sm, _, userStore := newTestHandlerWithDB(t)
+	ctx := context.Background()
+
+	userStore.Create(ctx, &user.User{
+		ID:          "user_update_nf",
+		Provider:    "google",
+		ProviderSub: "sub_update_nf",
+		IsDeveloper: true,
+	})
+
+	e := echo.New()
+	body := `{"name":"New Name"}`
+	req := httptest.NewRequest(http.MethodPut, "/agents/nonexistent", strings.NewReader(body))
+	req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
+	rec := httptest.NewRecorder()
+
+	sessionCookie, csrfCookie, csrfToken := createAgentSessionCookies(t, sm, "user_update_nf")
+	req.AddCookie(sessionCookie)
+	req.AddCookie(csrfCookie)
+	req.Header.Set("X-CSRF-Token", csrfToken)
+
+	c := e.NewContext(req, rec)
+	c.SetParamNames("id")
+	c.SetParamValues("nonexistent")
+
+	err := h.Update(c)
+	if err == nil {
+		t.Fatal("expected error for non-existent agent")
+	}
+	httpErr := err.(*echo.HTTPError)
+	if httpErr.Code != http.StatusNotFound {
+		t.Errorf("expected status %d, got %d", http.StatusNotFound, httpErr.Code)
+	}
+}
+
+func TestHandler_Publish_NotFound(t *testing.T) {
+	h, sm, _, userStore := newTestHandlerWithDB(t)
+	ctx := context.Background()
+
+	userStore.Create(ctx, &user.User{
+		ID:          "user_pub_nf",
+		Provider:    "google",
+		ProviderSub: "sub_pub_nf",
+		IsDeveloper: true,
+	})
+
+	e := echo.New()
+	req := httptest.NewRequest(http.MethodPost, "/agents/nonexistent/publish", nil)
+	rec := httptest.NewRecorder()
+
+	sessionCookie, csrfCookie, csrfToken := createAgentSessionCookies(t, sm, "user_pub_nf")
+	req.AddCookie(sessionCookie)
+	req.AddCookie(csrfCookie)
+	req.Header.Set("X-CSRF-Token", csrfToken)
+
+	c := e.NewContext(req, rec)
+	c.SetParamNames("id")
+	c.SetParamValues("nonexistent")
+
+	err := h.Publish(c)
+	if err == nil {
+		t.Fatal("expected error for non-existent agent")
+	}
+	httpErr := err.(*echo.HTTPError)
+	if httpErr.Code != http.StatusNotFound {
+		t.Errorf("expected status %d, got %d", http.StatusNotFound, httpErr.Code)
 	}
 }

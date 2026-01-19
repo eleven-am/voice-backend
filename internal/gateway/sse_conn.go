@@ -23,9 +23,6 @@ type SSEAgentConn struct {
 
 	mu        sync.RWMutex
 	connected bool
-
-	subMu      sync.RWMutex
-	outputSubs map[string]chan AgentOutput
 }
 
 func NewSSEAgentConn(w http.ResponseWriter, agentID, ownerID string) (*SSEAgentConn, error) {
@@ -35,14 +32,13 @@ func NewSSEAgentConn(w http.ResponseWriter, agentID, ownerID string) (*SSEAgentC
 	}
 
 	return &SSEAgentConn{
-		writer:     w,
-		flusher:    flusher,
-		agentID:    agentID,
-		ownerID:    ownerID,
-		send:       make(chan *transport.AgentMessage, 64),
-		done:       make(chan struct{}),
-		connected:  true,
-		outputSubs: make(map[string]chan AgentOutput),
+		writer:    w,
+		flusher:   flusher,
+		agentID:   agentID,
+		ownerID:   ownerID,
+		send:      make(chan *transport.AgentMessage, 128),
+		done:      make(chan struct{}),
+		connected: true,
 	}, nil
 }
 
@@ -70,25 +66,6 @@ func (c *SSEAgentConn) SetOnline(online bool) {
 	c.connected = online
 }
 
-func (c *SSEAgentConn) SubscribeOutput(sessionID string) <-chan AgentOutput {
-	c.subMu.Lock()
-	defer c.subMu.Unlock()
-
-	ch := make(chan AgentOutput, 64)
-	c.outputSubs[sessionID] = ch
-	return ch
-}
-
-func (c *SSEAgentConn) UnsubscribeOutput(sessionID string) {
-	c.subMu.Lock()
-	defer c.subMu.Unlock()
-
-	if ch, ok := c.outputSubs[sessionID]; ok {
-		close(ch)
-		delete(c.outputSubs, sessionID)
-	}
-}
-
 func (c *SSEAgentConn) Close() error {
 	c.closeOnce.Do(func() {
 		c.mu.Lock()
@@ -96,13 +73,7 @@ func (c *SSEAgentConn) Close() error {
 		c.mu.Unlock()
 
 		close(c.done)
-
-		c.subMu.Lock()
-		for _, ch := range c.outputSubs {
-			close(ch)
-		}
-		c.outputSubs = make(map[string]chan AgentOutput)
-		c.subMu.Unlock()
+		close(c.send)
 	})
 	return nil
 }
@@ -122,26 +93,6 @@ func (c *SSEAgentConn) Messages() <-chan *GatewayMessage {
 	return nil
 }
 
-func (c *SSEAgentConn) RouteEvent(event AgentEvent) {
-	c.subMu.RLock()
-	outputCh, hasOutput := c.outputSubs[event.SessionID]
-	c.subMu.RUnlock()
-
-	if !hasOutput {
-		return
-	}
-
-	output := eventToAgentOutput(event)
-	if output == nil {
-		return
-	}
-
-	select {
-	case outputCh <- *output:
-	default:
-	}
-}
-
 func (c *SSEAgentConn) Run(ctx context.Context) error {
 	ticker := time.NewTicker(sseKeepAliveInterval)
 	defer ticker.Stop()
@@ -149,7 +100,10 @@ func (c *SSEAgentConn) Run(ctx context.Context) error {
 
 	for {
 		select {
-		case msg := <-c.send:
+		case msg, ok := <-c.send:
+			if !ok {
+				return nil
+			}
 			if err := c.writeMessage(msg); err != nil {
 				return err
 			}
