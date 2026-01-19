@@ -7,12 +7,16 @@ RUN apk add --no-cache \
     opusfile-dev \
     upx
 
+RUN go install github.com/swaggo/swag/cmd/swag@latest
+
 WORKDIR /app
 
 COPY go.mod go.sum ./
 RUN go mod download
 
 COPY . .
+
+RUN swag init -g cmd/server/main.go -o docs --parseDependency --parseInternal
 
 RUN CGO_ENABLED=1 GOOS=linux go build \
     -ldflags="-w -s" \
