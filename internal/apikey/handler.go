@@ -1,6 +1,7 @@
 package apikey
 
 import (
+	"errors"
 	"log/slog"
 	"net/http"
 	"time"
@@ -187,7 +188,7 @@ func (h *Handler) Delete(c echo.Context) error {
 
 	key, err := h.store.GetByID(c.Request().Context(), keyID)
 	if err != nil {
-		if err == shared.ErrNotFound {
+		if errors.Is(err, shared.ErrNotFound) {
 			return shared.NotFound("key_not_found", "API key not found")
 		}
 		return shared.InternalError("get_failed", "failed to get API key")

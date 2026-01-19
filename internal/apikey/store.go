@@ -6,7 +6,6 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"errors"
-	"strings"
 	"time"
 
 	"github.com/eleven-am/voice-backend/internal/shared"
@@ -117,11 +116,4 @@ func generateSecret() (string, error) {
 func hashSecret(secret string) string {
 	h := sha256.Sum256([]byte(secret))
 	return hex.EncodeToString(h[:])
-}
-
-func ExtractPrefix(secret string) string {
-	if strings.HasPrefix(secret, "sk-voice-") && len(secret) >= 12 {
-		return secret[:12]
-	}
-	return ""
 }

@@ -1,0 +1,94 @@
+syntax = "proto3";
+package tts;
+option go_package = "github.com/eleven-am/voice-backend/internal/synthesis/ttspb";
+
+message TtsSessionConfig {
+  string voice_id = 1;
+  uint32 sample_rate = 2;
+  float speed = 3;
+  string model_id = 4;
+  string instructions = 5;
+  string language = 6;
+  string response_format = 7; // pcm/opus
+}
+
+message ListVoicesRequest {}
+message ListVoicesResponse {
+  repeated Voice voices = 1;
+}
+
+message Voice {
+  string id = 1;
+  string name = 2;
+  string language = 3;
+  string gender = 4;
+}
+
+message ListModelsRequest {}
+message ListModelsResponse {
+  repeated TTSModel models = 1;
+}
+
+message TTSModel {
+  string id = 1;
+  string name = 2;
+  string description = 3;
+}
+
+message TextChunk { string text = 1; }
+message EndOfText {}
+
+message TtsClientMessage {
+  oneof msg {
+    TtsSessionConfig config = 1;
+    TextChunk text = 2;
+    EndOfText end = 3;
+  }
+}
+
+message TtsSessionReady {
+  string voice_id = 1;
+  uint32 sample_rate = 2;
+}
+
+message AudioChunk {
+  bytes data = 1;
+  string format = 2;
+  uint32 sample_rate = 3;
+  uint64 timestamp_ms = 4;
+  string transcript = 5; // NEW: optional transcript text for this chunk
+}
+
+message TtsUsage {
+  uint64 audio_ms = 1;
+  uint64 processing_ms = 2;
+  uint64 text_chars = 3;
+}
+
+message TtsDone {
+  uint64 audio_duration_ms = 1;
+  uint64 processing_duration_ms = 2;
+  uint64 text_length = 3;
+  TtsUsage usage = 4;
+  string transcript = 5; // NEW: optional final transcript
+}
+
+message TtsError {
+  string message = 1;
+  uint32 code = 2;
+}
+
+message TtsServerMessage {
+  oneof msg {
+    TtsSessionReady ready = 1;
+    AudioChunk audio = 2;
+    TtsDone done = 3;
+    TtsError error = 4;
+  }
+}
+
+service TextToSpeechService {
+  rpc Synthesize(stream TtsClientMessage) returns (stream TtsServerMessage);
+  rpc ListVoices(ListVoicesRequest) returns (ListVoicesResponse);
+  rpc ListModels(ListModelsRequest) returns (ListModelsResponse);
+}

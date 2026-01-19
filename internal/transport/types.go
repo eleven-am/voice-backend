@@ -1,0 +1,127 @@
+package transport
+
+import (
+	"context"
+	"net/http"
+	"time"
+)
+
+type MessageType string
+
+const (
+	MessageTypeUtterance    MessageType = "utterance"
+	MessageTypeResponse     MessageType = "response"
+	MessageTypeSessionStart MessageType = "session_start"
+	MessageTypeSessionEnd   MessageType = "session_end"
+	MessageTypeAgentStatus  MessageType = "agent_status"
+	MessageTypeError        MessageType = "error"
+	MessageTypeVoiceStart   MessageType = "voice_start"
+	MessageTypeVoiceEnd     MessageType = "voice_end"
+	MessageTypeAudioFrame   MessageType = "audio_frame"
+	MessageTypeSpeechStart  MessageType = "speech_start"
+	MessageTypeSpeechEnd    MessageType = "speech_end"
+	MessageTypeTranscript   MessageType = "transcript"
+	MessageTypeTTSStart     MessageType = "tts_start"
+	MessageTypeTTSEnd       MessageType = "tts_end"
+	MessageTypeInterrupt    MessageType = "interrupt"
+)
+
+type AgentMessage struct {
+	Type      MessageType `json:"type"`
+	RequestID string      `json:"request_id"`
+	SessionID string      `json:"session_id"`
+	AgentID   string      `json:"agent_id,omitempty"`
+	UserID    string      `json:"user_id,omitempty"`
+	RoomID    string      `json:"room_id,omitempty"`
+	Timestamp time.Time   `json:"timestamp"`
+	Payload   any         `json:"payload"`
+}
+
+type UtterancePayload struct {
+	Text    string `json:"text"`
+	IsFinal bool   `json:"is_final"`
+}
+
+type ResponsePayload struct {
+	Text      string `json:"text"`
+	FromAgent string `json:"from_agent"`
+}
+
+type Bridge interface {
+	PublishUtterance(ctx context.Context, msg *AgentMessage) error
+	PublishToAgents(ctx context.Context, agentIDs []string, msg *AgentMessage) error
+	PublishCancellation(ctx context.Context, agentID, sessionID, reason string) error
+	SubscribeToSession(sessionID string)
+	UnsubscribeFromSession(sessionID string)
+	SetResponseHandler(handler func(sessionID string, msg *AgentMessage))
+}
+
+type AudioFormat int
+
+const (
+	AudioFormatOpus AudioFormat = iota
+	AudioFormatPCM
+)
+
+type AudioChunk struct {
+	EventID      string
+	ResponseID   string
+	ItemID       string
+	OutputIndex  int
+	ContentIndex int
+	Data         []byte
+	Format       string
+	SampleRate   uint32
+}
+
+type BackpressureCallback func(droppedCount int)
+
+type ServerEvent struct {
+	Type    string
+	Payload any
+}
+
+type ClientEnvelope struct {
+	Type    string
+	Payload any
+}
+
+type UserContext struct {
+	UserID string
+	IP     string
+	Name   string
+	Email  string
+}
+
+type ScopeLookup func(ctx context.Context, agentID string) ([]string, error)
+
+type StartRequest struct {
+	Conn        Connection
+	UserContext *UserContext
+	ScopeLookup ScopeLookup
+}
+
+type SessionStarter interface {
+	Start(req StartRequest) error
+}
+
+type UserProfile struct {
+	UserID string
+	Name   string
+	Email  string
+}
+
+type AuthFunc func(r *http.Request) (*UserProfile, error)
+
+type ScopeLookupFactory func(userID string) ScopeLookup
+
+type PartialTranscriptEvent struct {
+	Text      string
+	IsFinal   bool
+	Timestamp time.Time
+}
+
+type AgentCancelledEvent struct {
+	AgentID string
+	Reason  string
+}

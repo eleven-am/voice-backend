@@ -7,6 +7,7 @@ import (
 	"log/slog"
 	"sync"
 
+	"github.com/eleven-am/voice-backend/internal/transport"
 	"github.com/redis/go-redis/v9"
 )
 
@@ -22,7 +23,7 @@ type Bridge struct {
 	agentCancels    map[string]context.CancelFunc
 	sessionSubs     map[string]context.CancelFunc
 	mu              sync.RWMutex
-	responseHandler func(sessionID string, msg *GatewayMessage)
+	responseHandler func(sessionID string, msg *transport.AgentMessage)
 }
 
 func NewBridge(redisClient *redis.Client, logger *slog.Logger) *Bridge {
@@ -35,7 +36,7 @@ func NewBridge(redisClient *redis.Client, logger *slog.Logger) *Bridge {
 	}
 }
 
-func (b *Bridge) SetResponseHandler(handler func(sessionID string, msg *GatewayMessage)) {
+func (b *Bridge) SetResponseHandler(handler func(sessionID string, msg *transport.AgentMessage)) {
 	b.mu.Lock()
 	defer b.mu.Unlock()
 	b.responseHandler = handler
@@ -97,7 +98,7 @@ func (b *Bridge) GetOnlineAgents() []AgentInfo {
 	return agents
 }
 
-func (b *Bridge) PublishUtterance(ctx context.Context, msg *GatewayMessage) error {
+func (b *Bridge) PublishUtterance(ctx context.Context, msg *transport.AgentMessage) error {
 	channel := fmt.Sprintf(agentRequestChannel, msg.AgentID)
 	data, err := json.Marshal(msg)
 	if err != nil {
@@ -115,7 +116,7 @@ func (b *Bridge) PublishUtterance(ctx context.Context, msg *GatewayMessage) erro
 	return nil
 }
 
-func (b *Bridge) PublishResponse(ctx context.Context, msg *GatewayMessage) error {
+func (b *Bridge) PublishResponse(ctx context.Context, msg *transport.AgentMessage) error {
 	channel := fmt.Sprintf(sessionResponsePrefix, msg.SessionID)
 	data, err := json.Marshal(msg)
 	if err != nil {
@@ -181,13 +182,24 @@ func (b *Bridge) subscribeToAgentRequests(ctx context.Context, conn AgentConnect
 				return
 			}
 
-			var gatewayMsg GatewayMessage
-			if err := json.Unmarshal([]byte(msg.Payload), &gatewayMsg); err != nil {
+			var agentMsg transport.AgentMessage
+			if err := json.Unmarshal([]byte(msg.Payload), &agentMsg); err != nil {
 				b.logger.Error("unmarshal agent request", "error", err, "agent_id", agentID)
 				continue
 			}
 
-			if err := conn.Send(ctx, &gatewayMsg); err != nil {
+			gatewayMsg := &GatewayMessage{
+				Type:      MessageType(agentMsg.Type),
+				RequestID: agentMsg.RequestID,
+				SessionID: agentMsg.SessionID,
+				AgentID:   agentMsg.AgentID,
+				UserID:    agentMsg.UserID,
+				RoomID:    agentMsg.RoomID,
+				Timestamp: agentMsg.Timestamp,
+				Payload:   agentMsg.Payload,
+			}
+
+			if err := conn.Send(ctx, gatewayMsg); err != nil {
 				b.logger.Error("send to agent", "error", err, "agent_id", agentID)
 			}
 		}
@@ -216,8 +228,8 @@ func (b *Bridge) subscribeToSessionResponses(ctx context.Context, sessionID stri
 				return
 			}
 
-			var gatewayMsg GatewayMessage
-			if err := json.Unmarshal([]byte(msg.Payload), &gatewayMsg); err != nil {
+			var agentMsg transport.AgentMessage
+			if err := json.Unmarshal([]byte(msg.Payload), &agentMsg); err != nil {
 				b.logger.Error("unmarshal session response", "error", err, "session_id", sessionID)
 				continue
 			}
@@ -227,10 +239,59 @@ func (b *Bridge) subscribeToSessionResponses(ctx context.Context, sessionID stri
 			b.mu.RUnlock()
 
 			if handler != nil {
-				handler(sessionID, &gatewayMsg)
+				handler(sessionID, &agentMsg)
 			}
 		}
 	}
+}
+
+func (b *Bridge) PublishToAgents(ctx context.Context, agentIDs []string, msg *transport.AgentMessage) error {
+	data, err := json.Marshal(msg)
+	if err != nil {
+		return fmt.Errorf("marshal message: %w", err)
+	}
+
+	for _, agentID := range agentIDs {
+		channel := fmt.Sprintf(agentRequestChannel, agentID)
+		if err := b.redis.Publish(ctx, channel, data).Err(); err != nil {
+			b.logger.Error("publish to agent failed",
+				"agent_id", agentID,
+				"error", err)
+			continue
+		}
+		b.logger.Debug("published to agent",
+			"agent_id", agentID,
+			"session_id", msg.SessionID,
+			"request_id", msg.RequestID)
+	}
+	return nil
+}
+
+func (b *Bridge) PublishCancellation(ctx context.Context, agentID, sessionID, reason string) error {
+	msg := &transport.AgentMessage{
+		Type:      transport.MessageTypeInterrupt,
+		SessionID: sessionID,
+		AgentID:   agentID,
+		Payload: map[string]string{
+			"reason": reason,
+		},
+	}
+
+	channel := fmt.Sprintf(agentRequestChannel, agentID)
+	data, err := json.Marshal(msg)
+	if err != nil {
+		return fmt.Errorf("marshal cancellation: %w", err)
+	}
+
+	if err := b.redis.Publish(ctx, channel, data).Err(); err != nil {
+		return fmt.Errorf("publish cancellation: %w", err)
+	}
+
+	b.logger.Debug("published cancellation",
+		"agent_id", agentID,
+		"session_id", sessionID,
+		"reason", reason)
+	return nil
 }
 
 func (b *Bridge) Close() error {

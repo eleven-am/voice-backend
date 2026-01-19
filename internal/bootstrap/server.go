@@ -2,6 +2,7 @@ package bootstrap
 
 import (
 	"context"
+	"errors"
 	"net/http"
 
 	"github.com/eleven-am/voice-backend/internal/gateway"
@@ -45,7 +46,7 @@ func StartServer(lc fx.Lifecycle, e *echo.Echo, cfg *Config) {
 	lc.Append(fx.Hook{
 		OnStart: func(ctx context.Context) error {
 			go func() {
-				if err := e.Start(cfg.ServerAddr); err != nil && err != http.ErrServerClosed {
+				if err := e.Start(cfg.ServerAddr); err != nil && !errors.Is(err, http.ErrServerClosed) {
 					e.Logger.Fatal(err)
 				}
 			}()
@@ -68,8 +69,8 @@ func Run() {
 		InfrastructureModule,
 		StoresModule,
 		ServerModule,
-		GRPCModule,
 		gateway.Module,
 		HandlersModule,
+		VoiceModule,
 	).Run()
 }

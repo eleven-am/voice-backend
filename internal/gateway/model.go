@@ -2,42 +2,35 @@ package gateway
 
 import (
 	"context"
-	"time"
 
-	pb "github.com/eleven-am/voice-backend/internal/gateway/proto"
+	"github.com/eleven-am/voice-backend/internal/transport"
 )
 
-type MessageType string
+type MessageType = transport.MessageType
 
 const (
-	MessageTypeUtterance    MessageType = "utterance"
-	MessageTypeResponse     MessageType = "response"
-	MessageTypeSessionStart MessageType = "session_start"
-	MessageTypeSessionEnd   MessageType = "session_end"
-	MessageTypeAgentStatus  MessageType = "agent_status"
-	MessageTypeError        MessageType = "error"
+	MessageTypeUtterance    = transport.MessageTypeUtterance
+	MessageTypeResponse     = transport.MessageTypeResponse
+	MessageTypeSessionStart = transport.MessageTypeSessionStart
+	MessageTypeSessionEnd   = transport.MessageTypeSessionEnd
+	MessageTypeAgentStatus  = transport.MessageTypeAgentStatus
+	MessageTypeError        = transport.MessageTypeError
+	MessageTypeVoiceStart   = transport.MessageTypeVoiceStart
+	MessageTypeVoiceEnd     = transport.MessageTypeVoiceEnd
+	MessageTypeAudioFrame   = transport.MessageTypeAudioFrame
+	MessageTypeSpeechStart  = transport.MessageTypeSpeechStart
+	MessageTypeSpeechEnd    = transport.MessageTypeSpeechEnd
+	MessageTypeTranscript   = transport.MessageTypeTranscript
+	MessageTypeTTSStart     = transport.MessageTypeTTSStart
+	MessageTypeTTSEnd       = transport.MessageTypeTTSEnd
+	MessageTypeInterrupt    = transport.MessageTypeInterrupt
 )
 
-type GatewayMessage struct {
-	Type      MessageType `json:"type"`
-	RequestID string      `json:"request_id"`
-	SessionID string      `json:"session_id"`
-	AgentID   string      `json:"agent_id,omitempty"`
-	UserID    string      `json:"user_id,omitempty"`
-	RoomID    string      `json:"room_id,omitempty"`
-	Timestamp time.Time   `json:"timestamp"`
-	Payload   any         `json:"payload"`
-}
+type GatewayMessage = transport.AgentMessage
 
-type UtterancePayload struct {
-	Text    string `json:"text"`
-	IsFinal bool   `json:"is_final"`
-}
+type UtterancePayload = transport.UtterancePayload
 
-type ResponsePayload struct {
-	Text      string `json:"text"`
-	FromAgent string `json:"from_agent"`
-}
+type ResponsePayload = transport.ResponsePayload
 
 type AgentStatusPayload struct {
 	AgentID string `json:"agent_id"`
@@ -45,7 +38,7 @@ type AgentStatusPayload struct {
 }
 
 type ErrorPayload struct {
-	Code    pb.ErrorCode      `json:"code"`
+	Code    string            `json:"code"`
 	Message string            `json:"message"`
 	Details map[string]string `json:"details,omitempty"`
 }
@@ -75,13 +68,4 @@ type AgentConnection interface {
 	AgentID() string
 	SetOnline(online bool)
 	IsOnline() bool
-}
-
-type VoiceAgentConnection interface {
-	Send(ctx context.Context, msg *pb.ServerMessage) error
-	Messages() <-chan *pb.ClientMessage
-	SessionID() string
-	UserID() string
-	RoomID() string
-	Close() error
 }

@@ -2,6 +2,7 @@ package agent
 
 import (
 	"context"
+	"errors"
 	"log/slog"
 	"net/http"
 	"strings"
@@ -345,7 +346,7 @@ func (h *Handler) Publish(c echo.Context) error {
 	agentID := c.Param("id")
 	agent, err := h.store.GetByID(c.Request().Context(), agentID)
 	if err != nil {
-		if err == shared.ErrNotFound {
+		if errors.Is(err, shared.ErrNotFound) {
 			return shared.NotFound("agent_not_found", "agent not found")
 		}
 		return shared.InternalError("get_failed", "failed to get agent")

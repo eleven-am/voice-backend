@@ -34,7 +34,7 @@ type HandlerParams struct {
 	InstallHandler     *agent.InstallHandler
 	APIKeyHandler      *apikey.Handler
 	SessionHandler     *session.Handler
-	GatewayHandler     *gateway.Handler
+	AgentConnHandler   *gateway.AgentHandler
 	Config             *Config
 }
 
@@ -53,7 +53,7 @@ func RegisterRoutes(e *echo.Echo, params HandlerParams) {
 
 	params.SessionHandler.RegisterRoutes(api.Group("/metrics"))
 
-	params.GatewayHandler.RegisterRoutes(api.Group("/gateway"))
+	params.AgentConnHandler.RegisterRoutes(api.Group("/agents/connect"))
 
 	e.GET("/swagger/*", echoSwagger.WrapHandler)
 
@@ -105,14 +105,6 @@ func ProvideSessionHandler(store *session.Store, agentStore *agent.Store, userSt
 	return session.NewHandler(store, agentStore, userStore, sessions, logger.With("handler", "session"))
 }
 
-func ProvideLiveKitConfig(cfg *Config) gateway.LiveKitConfig {
-	return gateway.LiveKitConfig{
-		APIKey:    cfg.LiveKitAPIKey,
-		APISecret: cfg.LiveKitAPISecret,
-		URL:       cfg.LiveKitURL,
-	}
-}
-
 var HandlersModule = fx.Options(
 	fx.Provide(
 		ProvideLogger,
@@ -120,7 +112,6 @@ var HandlersModule = fx.Options(
 		ProvideGoogleProvider,
 		ProvideGitHubProvider,
 		ProvideEmbeddingService,
-		ProvideLiveKitConfig,
 		ProvideUserHandler,
 		ProvideAgentHandler,
 		ProvideMarketplaceHandler,

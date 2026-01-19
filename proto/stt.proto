@@ -1,0 +1,112 @@
+syntax = "proto3";
+package stt;
+option go_package = "github.com/eleven-am/voice-backend/internal/transcription/sttpb";
+
+message SessionConfig {
+  string language = 1;
+  uint32 sample_rate = 2;
+  string initial_prompt = 3;
+  string hotwords = 4;
+  bool partials = 5;
+  uint32 partial_window_ms = 6;
+  uint32 partial_stride_ms = 7;
+  bool include_word_timestamps = 8;
+  string model_id = 9;
+  string task = 10;
+  float temperature = 11;
+}
+
+message ListModelsRequest {}
+message ListModelsResponse { repeated STTModel models = 1; }
+
+message STTModel {
+  string id = 1;
+  string name = 2;
+  string description = 3;
+}
+
+message ListLanguagesRequest {}
+message ListLanguagesResponse { repeated string languages = 1; }
+
+message AudioFrame {
+  uint32 sample_rate = 1;
+  bytes pcm16 = 2;
+}
+
+message EncodedAudio {
+  string format = 1;
+  bytes data = 2;
+}
+
+message OpusFrame {
+  bytes data = 1;
+  uint32 sample_rate = 2;
+  uint32 channels = 3;
+}
+
+message ReadyMessage {}
+
+message SpeechStartedMessage {}
+
+message SpeechStoppedMessage {}
+
+message ErrorMessage {
+  string message = 1;
+}
+
+message Segment {
+  string text = 1;
+  float start = 2;
+  float end = 3;
+}
+
+message Usage {
+  uint64 input_tokens = 1;
+  uint64 output_tokens = 2;
+}
+
+message TranscriptWord {
+  string word = 1;
+  float start = 2;
+  float end = 3;
+}
+
+message TranscriptResult {
+  string text = 1;
+  bool is_partial = 2;
+  uint64 start_ms = 3;
+  uint64 end_ms = 4;
+  uint64 audio_duration_ms = 5;
+  uint64 processing_duration_ms = 6;
+  repeated Segment segments = 7;
+  Usage usage = 8;
+  string model = 9;
+  repeated TranscriptWord words = 10;
+  optional float eou_probability = 11;
+}
+
+message ClientMessage {
+  oneof msg {
+    SessionConfig config = 1;
+    AudioFrame audio = 2;
+    EncodedAudio encoded_audio = 3;
+    bool end_of_stream = 4;
+    OpusFrame opus_frame = 5;
+  }
+}
+
+message ServerMessage {
+  oneof msg {
+    ReadyMessage ready = 1;
+    SpeechStartedMessage speech_started = 2;
+    SpeechStoppedMessage speech_stopped = 3;
+    TranscriptResult transcript = 4;
+    ErrorMessage error = 5;
+  }
+}
+
+service TranscriptionService {
+  rpc Transcribe(stream ClientMessage) returns (stream ServerMessage);
+  rpc ListModels(ListModelsRequest) returns (ListModelsResponse);
+  rpc ListLanguages(ListLanguagesRequest) returns (ListLanguagesResponse);
+}

@@ -1,6 +1,7 @@
 package agent
 
 import (
+	"errors"
 	"log/slog"
 	"net/http"
 
@@ -107,7 +108,7 @@ func (h *InstallHandler) Install(c echo.Context) error {
 
 	agent, err := h.store.GetByID(c.Request().Context(), agentID)
 	if err != nil {
-		if err == shared.ErrNotFound {
+		if errors.Is(err, shared.ErrNotFound) {
 			return shared.NotFound("agent_not_found", "agent not found")
 		}
 		return shared.InternalError("get_failed", "failed to get agent")
@@ -172,7 +173,7 @@ func (h *InstallHandler) Uninstall(c echo.Context) error {
 	agentID := c.Param("id")
 
 	if err := h.store.Uninstall(c.Request().Context(), userID, agentID); err != nil {
-		if err == shared.ErrNotFound {
+		if errors.Is(err, shared.ErrNotFound) {
 			return shared.NotFound("not_installed", "agent is not installed")
 		}
 		return shared.InternalError("uninstall_failed", "failed to uninstall agent")
@@ -213,7 +214,7 @@ func (h *InstallHandler) UpdateScopes(c echo.Context) error {
 	}
 
 	if err := h.store.UpdateInstallScopes(c.Request().Context(), userID, agentID, req.Scopes); err != nil {
-		if err == shared.ErrNotFound {
+		if errors.Is(err, shared.ErrNotFound) {
 			return shared.NotFound("not_installed", "agent is not installed")
 		}
 		return shared.InternalError("update_failed", "failed to update scopes")
