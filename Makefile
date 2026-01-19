@@ -1,18 +1,18 @@
-BACKEND_IMAGE := elevenam/voice-backend
+GATEWAY_IMAGE := elevenam/voice-backend
 SIDECAR_IMAGE := elevenam/voice-sidecar
 
 VERSION ?= $(shell v=$$(git tag -l "v*.*.*" --sort=-v:refname --points-at HEAD 2>/dev/null | head -1); echo "$${v:-dev}")
 GIT_SHA := $(shell git rev-parse --short HEAD 2>/dev/null || echo "unknown")
 
-BACKEND_PLATFORMS := linux/amd64,linux/arm64
+GATEWAY_PLATFORMS := linux/amd64,linux/arm64
 SIDECAR_PLATFORMS := linux/amd64
 
-BACKEND_TAGS := -t $(BACKEND_IMAGE):$(VERSION) -t $(BACKEND_IMAGE):$(GIT_SHA) -t $(BACKEND_IMAGE):latest
+GATEWAY_TAGS := -t $(GATEWAY_IMAGE):$(VERSION) -t $(GATEWAY_IMAGE):$(GIT_SHA) -t $(GATEWAY_IMAGE):latest
 SIDECAR_TAGS := -t $(SIDECAR_IMAGE):$(VERSION) -t $(SIDECAR_IMAGE):$(GIT_SHA) -t $(SIDECAR_IMAGE):latest
 
-.PHONY: all build push clean backend sidecar backend-push sidecar-push \
+.PHONY: all build push clean gateway sidecar gateway-push sidecar-push \
         swagger proto test test-verbose test-sidecar coverage lint install \
-        run run-backend run-sidecar \
+        run-gateway run-sidecar seed \
         release-patch release-minor release-major \
         release-patch-push release-minor-push release-major-push help
 
@@ -20,15 +20,15 @@ SIDECAR_TAGS := -t $(SIDECAR_IMAGE):$(VERSION) -t $(SIDECAR_IMAGE):$(GIT_SHA) -t
 
 all: build
 
-build: backend sidecar
+build: gateway sidecar
 
-push: backend-push sidecar-push
+push: gateway-push sidecar-push
 
-backend:
-	docker build $(BACKEND_TAGS) -f Dockerfile .
+gateway:
+	docker build $(GATEWAY_TAGS) -f Dockerfile .
 
-backend-push:
-	docker buildx build --platform $(BACKEND_PLATFORMS) $(BACKEND_TAGS) --no-cache --push -f Dockerfile .
+gateway-push:
+	docker buildx build --platform $(GATEWAY_PLATFORMS) $(GATEWAY_TAGS) --no-cache --push -f Dockerfile .
 
 sidecar:
 	docker build $(SIDECAR_TAGS) -f sidecar/Dockerfile ./sidecar
@@ -58,7 +58,7 @@ proto:
 	@echo "Proto generation complete."
 
 clean:
-	docker rmi $(BACKEND_IMAGE):$(VERSION) $(BACKEND_IMAGE):$(GIT_SHA) $(BACKEND_IMAGE):latest 2>/dev/null || true
+	docker rmi $(GATEWAY_IMAGE):$(VERSION) $(GATEWAY_IMAGE):$(GIT_SHA) $(GATEWAY_IMAGE):latest 2>/dev/null || true
 	docker rmi $(SIDECAR_IMAGE):$(VERSION) $(SIDECAR_IMAGE):$(GIT_SHA) $(SIDECAR_IMAGE):latest 2>/dev/null || true
 	rm -f coverage.out coverage.html
 	rm -rf sidecar/.pytest_cache sidecar/.coverage
@@ -99,11 +99,14 @@ install-sidecar:
 
 install-all: install install-sidecar
 
-run-backend:
-	go run cmd/server/main.go
+run-gateway:
+	STT_ADDRESS=localhost:50051 TTS_ADDRESS=localhost:50051 go run cmd/server/main.go
 
 run-sidecar:
-	cd sidecar && uv run sidecar serve --stt-port 50052 --tts-port 50053
+	cd sidecar && DYLD_LIBRARY_PATH=/opt/homebrew/lib TTS_MODEL_ID=speaches-ai/Kokoro-82M-v1.0-ONNX uv run python -m sidecar.main
+
+seed:
+	go run cmd/seed/main.go
 
 define release
 	@latest_tag=$$(git tag -l "v*.*.*" | sort -V | tail -1); \
@@ -135,15 +138,15 @@ help:
 	@echo "Usage:"
 	@echo ""
 	@echo "  Docker:"
-	@echo "    make backend         - Build voice-backend image"
-	@echo "    make backend-push    - Build and push voice-backend"
+	@echo "    make gateway         - Build voice-backend image"
+	@echo "    make gateway-push    - Build and push voice-backend"
 	@echo "    make sidecar         - Build voice-sidecar image"
 	@echo "    make sidecar-push    - Build and push voice-sidecar"
 	@echo "    make build           - Build both images"
 	@echo "    make push            - Build and push both images"
 	@echo ""
 	@echo "  Development:"
-	@echo "    make run-backend     - Run Go backend server"
+	@echo "    make run-gateway     - Run Go gateway server"
 	@echo "    make run-sidecar     - Run Python sidecar (STT/TTS)"
 	@echo ""
 	@echo "  Testing:"
@@ -184,5 +187,5 @@ help:
 	@echo "  Variables:"
 	@echo "    VERSION=$(VERSION)"
 	@echo "    GIT_SHA=$(GIT_SHA)"
-	@echo "    BACKEND_PLATFORMS=$(BACKEND_PLATFORMS)"
+	@echo "    GATEWAY_PLATFORMS=$(GATEWAY_PLATFORMS)"
 	@echo "    SIDECAR_PLATFORMS=$(SIDECAR_PLATFORMS)"

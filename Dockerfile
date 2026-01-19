@@ -1,6 +1,11 @@
 FROM golang:1.25-alpine AS builder
 
-RUN apk add --no-cache upx
+RUN apk add --no-cache \
+    gcc \
+    musl-dev \
+    opus-dev \
+    opusfile-dev \
+    upx
 
 WORKDIR /app
 
@@ -9,14 +14,17 @@ RUN go mod download
 
 COPY . .
 
-RUN CGO_ENABLED=0 GOOS=linux go build \
+RUN CGO_ENABLED=1 GOOS=linux go build \
     -ldflags="-w -s" \
     -o /voice-backend ./cmd/server \
     && upx --best --lzma /voice-backend
 
 FROM alpine:3.21
 
-RUN apk add --no-cache ca-certificates \
+RUN apk add --no-cache \
+    ca-certificates \
+    opus \
+    opusfile \
     && adduser -D -u 1000 app
 
 COPY --from=builder /voice-backend /usr/local/bin/voice-backend

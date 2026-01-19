@@ -1,7 +1,7 @@
 ARG BASE_IMAGE=nvidia/cuda:12.8.1-cudnn-runtime-ubuntu24.04
 FROM ${BASE_IMAGE}
 
-LABEL org.opencontainers.image.source="https://github.com/eleven-am/hu"
+LABEL org.opencontainers.image.source="https://github.com/eleven-am/voice-backend"
 LABEL org.opencontainers.image.licenses="MIT"
 
 RUN apt-get update && \
@@ -39,7 +39,7 @@ ENV PATH="$HOME/sidecar/.venv/bin:$PATH" \
     GRPC_PORT=50051 \
     STT_DEVICE=cuda \
     PARAKEET_MODEL_ID="nemo-parakeet-tdt-0.6b-v3" \
-    TTS_MODEL_ID="hexgrad/Kokoro-82M-v1.0-ONNX" \
+    TTS_MODEL_ID="speaches-ai/Kokoro-82M-v1.0-ONNX" \
     HF_HUB_ENABLE_HF_TRANSFER=0 \
     DO_NOT_TRACK=1 \
     HF_HUB_DISABLE_TELEMETRY=1
