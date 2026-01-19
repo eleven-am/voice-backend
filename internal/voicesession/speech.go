@@ -8,7 +8,6 @@ import (
 type ActionType string
 
 const (
-	ActionNone         ActionType = ""
 	ActionStopTTS      ActionType = "stop_tts"
 	ActionCancelAgent  ActionType = "cancel_agent"
 	ActionPauseOutput  ActionType = "pause_output"

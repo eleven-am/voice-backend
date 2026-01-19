@@ -6,7 +6,6 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/eleven-am/voice-backend/internal/apikey"
 	"github.com/gorilla/websocket"
 	"github.com/labstack/echo/v4"
 )
@@ -60,18 +59,11 @@ func (h *AgentHandler) handleWebSocket(c echo.Context) error {
 		return echo.NewHTTPError(http.StatusUnauthorized, err.Error())
 	}
 
-	agentID := c.QueryParam("agent_id")
-	if agentID == "" {
-		if key.OwnerType == apikey.OwnerTypeAgent {
-			agentID = key.OwnerID
-		} else {
-			return echo.NewHTTPError(http.StatusBadRequest, "missing agent_id")
-		}
-	}
-
-	if err := h.auth.ValidateAgentAccess(key, agentID); err != nil {
+	if err := h.auth.ValidateAgentAccess(key, key.OwnerID); err != nil {
 		return echo.NewHTTPError(http.StatusForbidden, err.Error())
 	}
+
+	agentID := key.OwnerID
 
 	ws, err := wsUpgrader.Upgrade(c.Response(), c.Request(), nil)
 	if err != nil {
@@ -112,18 +104,11 @@ func (h *AgentHandler) handleSSE(c echo.Context) error {
 		return echo.NewHTTPError(http.StatusUnauthorized, err.Error())
 	}
 
-	agentID := c.QueryParam("agent_id")
-	if agentID == "" {
-		if key.OwnerType == apikey.OwnerTypeAgent {
-			agentID = key.OwnerID
-		} else {
-			return echo.NewHTTPError(http.StatusBadRequest, "missing agent_id")
-		}
-	}
-
-	if err := h.auth.ValidateAgentAccess(key, agentID); err != nil {
+	if err := h.auth.ValidateAgentAccess(key, key.OwnerID); err != nil {
 		return echo.NewHTTPError(http.StatusForbidden, err.Error())
 	}
+
+	agentID := key.OwnerID
 
 	if h.registry.IsOnline(agentID) {
 		return echo.NewHTTPError(http.StatusConflict, "agent already connected")
@@ -171,18 +156,11 @@ func (h *AgentHandler) HandleEvent(c echo.Context) error {
 		return echo.NewHTTPError(http.StatusUnauthorized, err.Error())
 	}
 
-	agentID := c.QueryParam("agent_id")
-	if agentID == "" {
-		if key.OwnerType == apikey.OwnerTypeAgent {
-			agentID = key.OwnerID
-		} else {
-			return echo.NewHTTPError(http.StatusBadRequest, "missing agent_id")
-		}
-	}
-
-	if err := h.auth.ValidateAgentAccess(key, agentID); err != nil {
+	if err := h.auth.ValidateAgentAccess(key, key.OwnerID); err != nil {
 		return echo.NewHTTPError(http.StatusForbidden, err.Error())
 	}
+
+	agentID := key.OwnerID
 
 	var event AgentEvent
 	if err := c.Bind(&event); err != nil {
@@ -239,9 +217,8 @@ func (h *AgentHandler) publishTextResponse(ctx context.Context, sessionID, agent
 }
 
 func extractAPIKey(r *http.Request) string {
-	authHeader := r.Header.Get("Authorization")
-	if strings.HasPrefix(authHeader, "Bearer ") {
-		return strings.TrimPrefix(authHeader, "Bearer ")
+	if authHeader, found := strings.CutPrefix(r.Header.Get("Authorization"), "Bearer "); found {
+		return authHeader
 	}
 
 	if apiKey := r.Header.Get("X-API-Key"); apiKey != "" {

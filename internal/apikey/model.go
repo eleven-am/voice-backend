@@ -9,9 +9,8 @@ import (
 type OwnerType string
 
 const (
-	OwnerTypeUser      OwnerType = "user"
-	OwnerTypeAgent     OwnerType = "agent"
-	OwnerTypeDeveloper OwnerType = "developer"
+	OwnerTypeUser  OwnerType = "user"
+	OwnerTypeAgent OwnerType = "agent"
 )
 
 type APIKey struct {

@@ -16,10 +16,6 @@ func ProvideAuthenticator(store *apikey.Store) *Authenticator {
 	return NewAuthenticator(store)
 }
 
-func ProvideWSServer(auth *Authenticator, bridge *Bridge, logger *slog.Logger) *WSServer {
-	return NewWSServer(auth, bridge, logger)
-}
-
 func ProvideAgentRegistry() *AgentRegistry {
 	return NewAgentRegistry()
 }
@@ -32,7 +28,6 @@ var Module = fx.Options(
 	fx.Provide(
 		ProvideBridge,
 		ProvideAuthenticator,
-		ProvideWSServer,
 		ProvideAgentRegistry,
 		ProvideAgentHandler,
 	),

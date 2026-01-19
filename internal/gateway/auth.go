@@ -10,7 +10,8 @@ import (
 var (
 	ErrUnauthorized    = errors.New("unauthorized")
 	ErrInvalidAPIKey   = errors.New("invalid api key")
-	ErrAgentNotAllowed = errors.New("agent not allowed for this api key")
+	ErrNotAgentKey     = errors.New("api key is not an agent key")
+	ErrAgentIDMismatch = errors.New("agent id does not match api key owner")
 )
 
 type Authenticator struct {
@@ -30,15 +31,11 @@ func (a *Authenticator) ValidateAPIKey(ctx context.Context, secret string) (*api
 }
 
 func (a *Authenticator) ValidateAgentAccess(key *apikey.APIKey, agentID string) error {
-	if key.OwnerType == apikey.OwnerTypeAgent && key.OwnerID == agentID {
-		return nil
+	if key.OwnerType != apikey.OwnerTypeAgent {
+		return ErrNotAgentKey
 	}
-
-	for _, scope := range key.Scopes {
-		if scope == "agent:*" || scope == "agent:"+agentID {
-			return nil
-		}
+	if key.OwnerID != agentID {
+		return ErrAgentIDMismatch
 	}
-
-	return ErrAgentNotAllowed
+	return nil
 }

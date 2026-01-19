@@ -4,13 +4,10 @@ import (
 	"context"
 	"encoding/json"
 	"log/slog"
-	"net/http"
 	"sync"
 	"time"
 
-	"github.com/eleven-am/voice-backend/internal/apikey"
 	"github.com/gorilla/websocket"
-	"github.com/labstack/echo/v4"
 )
 
 const (
@@ -19,71 +16,6 @@ const (
 	pingPeriod     = (pongWait * 9) / 10
 	maxMessageSize = 512 * 1024
 )
-
-var upgrader = websocket.Upgrader{
-	ReadBufferSize:  1024,
-	WriteBufferSize: 1024,
-	CheckOrigin: func(r *http.Request) bool {
-		return true
-	},
-}
-
-type WSServer struct {
-	auth   *Authenticator
-	bridge *Bridge
-	logger *slog.Logger
-}
-
-func NewWSServer(auth *Authenticator, bridge *Bridge, logger *slog.Logger) *WSServer {
-	return &WSServer{
-		auth:   auth,
-		bridge: bridge,
-		logger: logger.With("component", "ws_server"),
-	}
-}
-
-func (s *WSServer) HandleConnection(c echo.Context) error {
-	apiKey := c.QueryParam("api_key")
-	if apiKey == "" {
-		apiKey = c.Request().Header.Get("X-API-Key")
-	}
-
-	if apiKey == "" {
-		return echo.NewHTTPError(http.StatusUnauthorized, "missing api key")
-	}
-
-	key, err := s.auth.ValidateAPIKey(c.Request().Context(), apiKey)
-	if err != nil {
-		return echo.NewHTTPError(http.StatusUnauthorized, err.Error())
-	}
-
-	agentID := c.QueryParam("agent_id")
-	if agentID == "" {
-		if key.OwnerType == apikey.OwnerTypeAgent {
-			agentID = key.OwnerID
-		} else {
-			return echo.NewHTTPError(http.StatusBadRequest, "missing agent_id")
-		}
-	}
-
-	if err := s.auth.ValidateAgentAccess(key, agentID); err != nil {
-		return echo.NewHTTPError(http.StatusForbidden, err.Error())
-	}
-
-	ws, err := upgrader.Upgrade(c.Response(), c.Request(), nil)
-	if err != nil {
-		s.logger.Error("websocket upgrade failed", "error", err)
-		return err
-	}
-
-	conn := newWSAgentConnection(ws, agentID, key.OwnerID, s.logger)
-	s.bridge.RegisterAgent(conn)
-
-	go conn.writePump()
-	conn.readPump(s.bridge)
-
-	return nil
-}
 
 type wsAgentConnection struct {
 	ws       *websocket.Conn
@@ -106,7 +38,6 @@ func newWSAgentConnection(ws *websocket.Conn, agentID, ownerID string, logger *s
 		logger:   logger.With("agent_id", agentID),
 		send:     make(chan *GatewayMessage, 256),
 		messages: make(chan *GatewayMessage, 256),
-		online:   true,
 		done:     make(chan struct{}),
 	}
 }
@@ -125,8 +56,8 @@ func (c *wsAgentConnection) UserID() string {
 
 func (c *wsAgentConnection) SetOnline(online bool) {
 	c.mu.Lock()
-	defer c.mu.Unlock()
 	c.online = online
+	c.mu.Unlock()
 }
 
 func (c *wsAgentConnection) IsOnline() bool {
@@ -135,12 +66,15 @@ func (c *wsAgentConnection) IsOnline() bool {
 	return c.online
 }
 
-func (c *wsAgentConnection) Send(ctx context.Context, msg *GatewayMessage) error {
-	select {
-	case <-c.done:
+func (c *wsAgentConnection) Send(_ context.Context, msg *GatewayMessage) error {
+	c.mu.RLock()
+	if c.closed {
+		c.mu.RUnlock()
 		return nil
-	case <-ctx.Done():
-		return ctx.Err()
+	}
+	c.mu.RUnlock()
+
+	select {
 	case c.send <- msg:
 		return nil
 	default:
@@ -160,23 +94,22 @@ func (c *wsAgentConnection) Close() error {
 		return nil
 	}
 	c.closed = true
-	c.online = false
 	close(c.done)
 	c.mu.Unlock()
 
+	close(c.send)
 	return c.ws.Close()
 }
 
 func (c *wsAgentConnection) readPump(bridge *Bridge) {
 	defer func() {
 		c.Close()
-		bridge.UnregisterAgent(c.agentID)
 	}()
 
 	c.ws.SetReadLimit(maxMessageSize)
-	c.ws.SetReadDeadline(time.Now().Add(pongWait))
+	_ = c.ws.SetReadDeadline(time.Now().Add(pongWait))
 	c.ws.SetPongHandler(func(string) error {
-		c.ws.SetReadDeadline(time.Now().Add(pongWait))
+		_ = c.ws.SetReadDeadline(time.Now().Add(pongWait))
 		return nil
 	})
 
@@ -184,58 +117,68 @@ func (c *wsAgentConnection) readPump(bridge *Bridge) {
 		_, message, err := c.ws.ReadMessage()
 		if err != nil {
 			if websocket.IsUnexpectedCloseError(err, websocket.CloseGoingAway, websocket.CloseAbnormalClosure) {
-				c.logger.Error("read error", "error", err)
+				c.logger.Error("websocket read error", "error", err)
 			}
 			return
 		}
 
 		var msg GatewayMessage
 		if err := json.Unmarshal(message, &msg); err != nil {
-			c.logger.Error("unmarshal error", "error", err)
+			c.logger.Error("failed to unmarshal message", "error", err)
 			continue
 		}
 
 		msg.AgentID = c.agentID
-		if msg.Timestamp.IsZero() {
-			msg.Timestamp = time.Now()
+
+		if msg.Type == MessageTypeResponse && msg.SessionID != "" {
+			if err := bridge.PublishResponse(context.Background(), &msg); err != nil {
+				c.logger.Error("failed to publish response", "error", err)
+			}
 		}
 
-		if msg.Type == MessageTypeResponse {
-			if err := bridge.PublishResponse(context.Background(), &msg); err != nil {
-				c.logger.Error("publish response failed", "error", err)
-			}
+		select {
+		case c.messages <- &msg:
+		default:
+			c.logger.Warn("message buffer full, dropping message")
 		}
 	}
 }
 
 func (c *wsAgentConnection) writePump() {
 	ticker := time.NewTicker(pingPeriod)
-	defer ticker.Stop()
+	defer func() {
+		ticker.Stop()
+		c.Close()
+	}()
 
 	for {
 		select {
-		case <-c.done:
-			c.ws.WriteMessage(websocket.CloseMessage, []byte{})
-			return
-		case msg := <-c.send:
-			c.ws.SetWriteDeadline(time.Now().Add(writeWait))
+		case msg, ok := <-c.send:
+			_ = c.ws.SetWriteDeadline(time.Now().Add(writeWait))
+			if !ok {
+				_ = c.ws.WriteMessage(websocket.CloseMessage, []byte{})
+				return
+			}
 
 			data, err := json.Marshal(msg)
 			if err != nil {
-				c.logger.Error("marshal error", "error", err)
+				c.logger.Error("failed to marshal message", "error", err)
 				continue
 			}
 
 			if err := c.ws.WriteMessage(websocket.TextMessage, data); err != nil {
-				c.logger.Error("write error", "error", err)
+				c.logger.Error("websocket write error", "error", err)
 				return
 			}
 
 		case <-ticker.C:
-			c.ws.SetWriteDeadline(time.Now().Add(writeWait))
+			_ = c.ws.SetWriteDeadline(time.Now().Add(writeWait))
 			if err := c.ws.WriteMessage(websocket.PingMessage, nil); err != nil {
 				return
 			}
+
+		case <-c.done:
+			return
 		}
 	}
 }

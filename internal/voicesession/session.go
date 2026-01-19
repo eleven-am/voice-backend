@@ -153,12 +153,14 @@ func (s *VoiceSession) onSTTReady() {
 
 func (s *VoiceSession) onSpeechStart() {
 	s.log.Debug("speech started")
+	s.sendEvent(transport.MessageTypeSpeechStart, nil)
 	actions := s.speechCtrl.OnUserSpeechStart(time.Now())
 	s.executeActions(actions)
 }
 
 func (s *VoiceSession) onSpeechEnd() {
 	s.log.Debug("speech ended")
+	s.sendEvent(transport.MessageTypeSpeechEnd, nil)
 	actions := s.speechCtrl.OnUserSpeechEnd(time.Now())
 	s.executeActions(actions)
 }
@@ -194,6 +196,10 @@ func (s *VoiceSession) cancelActiveAgents(reason string) {
 		if err := s.bridge.PublishCancellation(s.ctx, agentID, s.sessionID, reason); err != nil {
 			s.log.Error("failed to cancel agent", "agent_id", agentID, "error", err)
 		}
+		s.sendEvent(transport.MessageTypeInterrupt, transport.AgentCancelledEvent{
+			AgentID: agentID,
+			Reason:  reason,
+		})
 	}
 
 	s.arbiter.Reset()
@@ -262,6 +268,10 @@ func (s *VoiceSession) sendPartialTranscript(evt transcription.TranscriptEvent) 
 
 func (s *VoiceSession) onSTTError(err error) {
 	s.log.Error("STT error", "error", err)
+	s.sendEvent(transport.MessageTypeError, map[string]string{
+		"source":  "stt",
+		"message": err.Error(),
+	})
 }
 
 func (s *VoiceSession) onAgentResponse(sessionID string, msg *transport.AgentMessage) {
@@ -273,12 +283,19 @@ func (s *VoiceSession) onAgentResponse(sessionID string, msg *transport.AgentMes
 		return
 	}
 
-	payload, ok := msg.Payload.(map[string]any)
-	if !ok {
+	var text string
+
+	switch p := msg.Payload.(type) {
+	case transport.ResponsePayload:
+		text = p.Text
+	case *transport.ResponsePayload:
+		text = p.Text
+	case map[string]any:
+		text, _ = p["text"].(string)
+	default:
 		return
 	}
 
-	text, _ := payload["text"].(string)
 	if text == "" {
 		return
 	}
@@ -301,6 +318,10 @@ func (s *VoiceSession) onAgentResponse(sessionID string, msg *transport.AgentMes
 					"agent_id", loserID,
 					"error", err)
 			}
+			s.sendEvent(transport.MessageTypeInterrupt, transport.AgentCancelledEvent{
+				AgentID: loserID,
+				Reason:  "lost_arbitration",
+			})
 		}
 	}
 
@@ -324,6 +345,7 @@ func (s *VoiceSession) synthesizeResponse(text string, cancelCh <-chan struct{})
 	}
 
 	s.speechCtrl.OnTTSAudioStart()
+	s.sendEvent(transport.MessageTypeTTSStart, nil)
 
 	cb := synthesis.Callbacks{
 		OnReady: func(sampleRate uint32, voiceID string) {
@@ -342,11 +364,16 @@ func (s *VoiceSession) synthesizeResponse(text string, cancelCh <-chan struct{})
 		OnDone: func(audioDurationMs, processingDurationMs, textLength uint64) {
 			s.log.Debug("TTS done", "audio_duration_ms", audioDurationMs)
 			s.speechCtrl.OnTTSAudioEnd()
+			s.sendEvent(transport.MessageTypeTTSEnd, nil)
 			s.arbiter.Reset()
 		},
 		OnError: func(err error) {
 			s.log.Error("TTS error", "error", err)
 			s.speechCtrl.OnTTSAudioEnd()
+			s.sendEvent(transport.MessageTypeError, map[string]string{
+				"source":  "tts",
+				"message": err.Error(),
+			})
 		},
 	}
 
@@ -368,6 +395,16 @@ func (s *VoiceSession) stopTTS() {
 		ctrl.StopTTS()
 	}
 	s.conn.FlushAudioQueue()
+}
+
+func (s *VoiceSession) sendEvent(msgType transport.MessageType, payload any) {
+	evt := transport.ServerEvent{
+		Type:    string(msgType),
+		Payload: payload,
+	}
+	if err := s.conn.Send(s.ctx, evt); err != nil {
+		s.log.Error("failed to send event", "type", msgType, "error", err)
+	}
 }
 
 func (s *VoiceSession) Close() error {
