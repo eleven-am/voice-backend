@@ -2,11 +2,11 @@ from __future__ import annotations
 
 import io
 import logging
-import subprocess
 from dataclasses import dataclass
 
 import numpy as np
-import soxr
+from pydub import AudioSegment
+from pydub.exceptions import CouldntDecodeError
 
 logger = logging.getLogger(__name__)
 
@@ -32,49 +32,21 @@ def _detect_format(filename: str | None) -> str | None:
     return ext if ext in ("mp3", "wav", "ogg", "flac", "aac", "opus", "webm") else None
 
 
-def _decode_with_soundfile(audio_bytes: bytes, source_format: str | None) -> np.ndarray | None:
-    try:
-        import soundfile as sf
-        data, sr = sf.read(io.BytesIO(audio_bytes), dtype="float32")
-        if len(data.shape) > 1:
-            data = data.mean(axis=1)
-        if sr != TARGET_SAMPLE_RATE:
-            data = soxr.resample(data, sr, TARGET_SAMPLE_RATE)
-        return data.astype(np.float32)
-    except Exception:
-        return None
-
-
-def _decode_with_ffmpeg(audio_bytes: bytes, source_format: str | None) -> np.ndarray:
-    cmd = ["ffmpeg", "-hide_banner", "-loglevel", "error"]
-    if source_format:
-        cmd += ["-f", source_format]
-    cmd += [
-        "-i", "pipe:0",
-        "-f", "f32le",
-        "-ar", str(TARGET_SAMPLE_RATE),
-        "-ac", "1",
-        "pipe:1",
-    ]
-    proc = subprocess.Popen(
-        cmd, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE
-    )
-    try:
-        stdout, stderr = proc.communicate(input=audio_bytes, timeout=300)
-    except subprocess.TimeoutExpired as e:
-        proc.kill()
-        proc.communicate()
-        raise ValueError("ffmpeg decode timed out after 300 seconds") from e
-    if proc.returncode != 0:
-        raise ValueError(f"ffmpeg decode error: {stderr.decode().strip()}")
-    return np.frombuffer(stdout, dtype=np.float32)
-
-
 def decode_audio(audio_bytes: bytes, source_format: str | None = None) -> np.ndarray:
-    audio = _decode_with_soundfile(audio_bytes, source_format)
-    if audio is not None:
-        return audio
-    return _decode_with_ffmpeg(audio_bytes, source_format)
+    buffer = io.BytesIO(audio_bytes)
+    try:
+        if source_format:
+            audio = AudioSegment.from_file(buffer, format=source_format)
+        else:
+            audio = AudioSegment.from_file(buffer)
+    except CouldntDecodeError as e:
+        raise ValueError(f"Failed to decode audio: {e}") from e
+    except Exception as e:
+        raise ValueError(f"Failed to process audio: {e}") from e
+
+    audio = audio.set_frame_rate(TARGET_SAMPLE_RATE).set_channels(TARGET_CHANNELS)
+    samples = np.array(audio.get_array_of_samples(), dtype=np.int16)
+    return samples.astype(np.float32) / 32768.0
 
 
 def chunk_audio(

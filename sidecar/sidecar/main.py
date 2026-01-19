@@ -10,7 +10,7 @@ import grpc
 
 from sidecar import stt_pb2_grpc, tts_pb2_grpc
 from sidecar.engine_manager import EngineConfig, STTEngineManager
-from sidecar.grpc_server import TranscriptionServiceServicer
+from sidecar.infrastructure.grpc.grpc_servicer import TranscriptionServiceServicer
 from sidecar.stt_pipeline import STTPipelineConfig, EOUConfig
 from sidecar.tts_grpc_server import TextToSpeechServiceServicer
 from sidecar.tts_models import KokoroModelManager, SynthesisConfig, TTSConfig
@@ -118,7 +118,15 @@ def serve() -> None:
         from sidecar.utils import token_auth_interceptor
         interceptors.append(token_auth_interceptor(token))
 
-    server = grpc.server(grpc_executor, interceptors=interceptors)
+    max_msg_size = get_env("GRPC_MAX_MESSAGE_SIZE", 512) * 1024 * 1024
+    server = grpc.server(
+        grpc_executor,
+        interceptors=interceptors,
+        options=[
+            ('grpc.max_send_message_length', max_msg_size),
+            ('grpc.max_receive_message_length', max_msg_size),
+        ],
+    )
     stt_pb2_grpc.add_TranscriptionServiceServicer_to_server(
         TranscriptionServiceServicer(engine_manager, pipeline_config, stt_executor),
         server,
