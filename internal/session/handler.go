@@ -6,6 +6,7 @@ import (
 	"strconv"
 
 	"github.com/eleven-am/voice-backend/internal/agent"
+	"github.com/eleven-am/voice-backend/internal/auth"
 	"github.com/eleven-am/voice-backend/internal/dto"
 	"github.com/eleven-am/voice-backend/internal/shared"
 	"github.com/eleven-am/voice-backend/internal/user"
@@ -16,16 +17,14 @@ type Handler struct {
 	store      *Store
 	agentStore *agent.Store
 	userStore  *user.Store
-	sessions   *user.SessionManager
 	logger     *slog.Logger
 }
 
-func NewHandler(store *Store, agentStore *agent.Store, userStore *user.Store, sessions *user.SessionManager, logger *slog.Logger) *Handler {
+func NewHandler(store *Store, agentStore *agent.Store, userStore *user.Store, logger *slog.Logger) *Handler {
 	return &Handler{
 		store:      store,
 		agentStore: agentStore,
 		userStore:  userStore,
-		sessions:   sessions,
 		logger:     logger,
 	}
 }
@@ -36,12 +35,8 @@ func (h *Handler) RegisterRoutes(g *echo.Group) {
 }
 
 func (h *Handler) requireDeveloperOwnership(c echo.Context, agentID string) error {
-	userID, csrf, err := h.sessions.Get(c)
+	userID, err := auth.RequireAuth(c)
 	if err != nil {
-		return shared.Unauthorized("auth_required", "authentication required")
-	}
-
-	if err := h.sessions.RequireCSRF(c, csrf); err != nil {
 		return err
 	}
 
@@ -85,20 +80,6 @@ func metricsToResponse(m *Metrics) dto.MetricsResponse {
 	}
 }
 
-// GetMetrics godoc
-// @Summary      Get agent metrics
-// @Description  Returns hourly metrics for an agent owned by the developer
-// @Tags         metrics
-// @Produce      json
-// @Param        id     path      string  true   "Agent ID"
-// @Param        hours  query     int     false  "Number of hours (default 24, max 168)"
-// @Success      200    {object}  dto.MetricsListResponse
-// @Failure      401    {object}  shared.APIError
-// @Failure      403    {object}  shared.APIError
-// @Failure      404    {object}  shared.APIError
-// @Failure      500    {object}  shared.APIError
-// @Security     SessionAuth
-// @Router       /metrics/agents/{id} [get]
 func (h *Handler) GetMetrics(c echo.Context) error {
 	agentID := c.Param("id")
 
@@ -109,8 +90,8 @@ func (h *Handler) GetMetrics(c echo.Context) error {
 	hoursStr := c.QueryParam("hours")
 	hours := 24
 	if hoursStr != "" {
-		if h, err := strconv.Atoi(hoursStr); err == nil && h > 0 && h <= 168 {
-			hours = h
+		if hr, err := strconv.Atoi(hoursStr); err == nil && hr > 0 && hr <= 168 {
+			hours = hr
 		}
 	}
 
@@ -132,19 +113,6 @@ func (h *Handler) GetMetrics(c echo.Context) error {
 	})
 }
 
-// GetSummary godoc
-// @Summary      Get agent metrics summary
-// @Description  Returns aggregated 7-day metrics summary for an agent
-// @Tags         metrics
-// @Produce      json
-// @Param        id   path      string  true  "Agent ID"
-// @Success      200  {object}  dto.SummaryResponse
-// @Failure      401  {object}  shared.APIError
-// @Failure      403  {object}  shared.APIError
-// @Failure      404  {object}  shared.APIError
-// @Failure      500  {object}  shared.APIError
-// @Security     SessionAuth
-// @Router       /metrics/agents/{id}/summary [get]
 func (h *Handler) GetSummary(c echo.Context) error {
 	agentID := c.Param("id")
 

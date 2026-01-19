@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/eleven-am/voice-backend/internal/auth"
 	"github.com/eleven-am/voice-backend/internal/dto"
 	"github.com/eleven-am/voice-backend/internal/shared"
 	"github.com/eleven-am/voice-backend/internal/user"
@@ -15,15 +16,13 @@ import (
 type Handler struct {
 	store     *Store
 	userStore *user.Store
-	sessions  *user.SessionManager
 	logger    *slog.Logger
 }
 
-func NewHandler(store *Store, userStore *user.Store, sessions *user.SessionManager, logger *slog.Logger) *Handler {
+func NewHandler(store *Store, userStore *user.Store, logger *slog.Logger) *Handler {
 	return &Handler{
 		store:     store,
 		userStore: userStore,
-		sessions:  sessions,
 		logger:    logger,
 	}
 }
@@ -35,12 +34,8 @@ func (h *Handler) RegisterRoutes(g *echo.Group) {
 }
 
 func (h *Handler) requireDeveloper(c echo.Context) (string, error) {
-	userID, csrf, err := h.sessions.Get(c)
+	userID, err := auth.RequireAuth(c)
 	if err != nil {
-		return "", shared.Unauthorized("auth_required", "authentication required")
-	}
-
-	if err := h.sessions.RequireCSRF(c, csrf); err != nil {
 		return "", err
 	}
 
@@ -77,17 +72,6 @@ func keyToResponse(k *APIKey) dto.APIKeyResponse {
 	return resp
 }
 
-// List godoc
-// @Summary      List API keys
-// @Description  Returns all API keys owned by the authenticated developer
-// @Tags         apikeys
-// @Produce      json
-// @Success      200  {object}  dto.APIKeyListResponse
-// @Failure      401  {object}  shared.APIError
-// @Failure      403  {object}  shared.APIError
-// @Failure      500  {object}  shared.APIError
-// @Security     SessionAuth
-// @Router       /apikeys [get]
 func (h *Handler) List(c echo.Context) error {
 	userID, err := h.requireDeveloper(c)
 	if err != nil {
@@ -108,20 +92,6 @@ func (h *Handler) List(c echo.Context) error {
 	return c.JSON(http.StatusOK, dto.APIKeyListResponse{APIKeys: response})
 }
 
-// Create godoc
-// @Summary      Create an API key
-// @Description  Creates a new API key for the authenticated developer
-// @Tags         apikeys
-// @Accept       json
-// @Produce      json
-// @Param        request  body      dto.CreateAPIKeyRequest  true  "API key details"
-// @Success      201      {object}  dto.CreateAPIKeyResponse
-// @Failure      400      {object}  shared.APIError
-// @Failure      401      {object}  shared.APIError
-// @Failure      403      {object}  shared.APIError
-// @Failure      500      {object}  shared.APIError
-// @Security     SessionAuth
-// @Router       /apikeys [post]
 func (h *Handler) Create(c echo.Context) error {
 	userID, err := h.requireDeveloper(c)
 	if err != nil {
@@ -166,18 +136,6 @@ func (h *Handler) Create(c echo.Context) error {
 	})
 }
 
-// Delete godoc
-// @Summary      Delete an API key
-// @Description  Deletes an API key owned by the authenticated developer
-// @Tags         apikeys
-// @Param        id  path  string  true  "API Key ID"
-// @Success      204  "No Content"
-// @Failure      401  {object}  shared.APIError
-// @Failure      403  {object}  shared.APIError
-// @Failure      404  {object}  shared.APIError
-// @Failure      500  {object}  shared.APIError
-// @Security     SessionAuth
-// @Router       /apikeys/{id} [delete]
 func (h *Handler) Delete(c echo.Context) error {
 	userID, err := h.requireDeveloper(c)
 	if err != nil {

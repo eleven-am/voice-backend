@@ -7,6 +7,7 @@ import (
 
 	"github.com/eleven-am/voice-backend/internal/agent"
 	"github.com/eleven-am/voice-backend/internal/apikey"
+	"github.com/eleven-am/voice-backend/internal/auth"
 	"github.com/eleven-am/voice-backend/internal/gateway"
 	"github.com/eleven-am/voice-backend/internal/session"
 	"github.com/eleven-am/voice-backend/internal/user"
@@ -35,23 +36,34 @@ type HandlerParams struct {
 	APIKeyHandler      *apikey.Handler
 	SessionHandler     *session.Handler
 	AgentConnHandler   *gateway.AgentHandler
+	JWTMiddleware      *auth.Middleware
 	Config             *Config
 }
 
 func RegisterRoutes(e *echo.Echo, params HandlerParams) {
 	api := e.Group("/api/v1")
 
-	params.UserHandler.RegisterRoutes(api.Group("/auth"))
+	authGroup := api.Group("/auth")
+	authGroup.Use(params.JWTMiddleware.Authenticate)
+	params.UserHandler.RegisterRoutes(authGroup)
 
-	params.InstallHandler.RegisterRoutes(api.Group("/me/agents"))
+	myAgentsGroup := api.Group("/me/agents")
+	myAgentsGroup.Use(params.JWTMiddleware.Authenticate)
+	params.InstallHandler.RegisterRoutes(myAgentsGroup)
 
-	params.AgentHandler.RegisterRoutes(api.Group("/agents"))
+	agentsGroup := api.Group("/agents")
+	agentsGroup.Use(params.JWTMiddleware.Authenticate)
+	params.AgentHandler.RegisterRoutes(agentsGroup)
 
 	params.MarketplaceHandler.RegisterRoutes(api.Group("/store"))
 
-	params.APIKeyHandler.RegisterRoutes(api.Group("/apikeys"))
+	apikeysGroup := api.Group("/apikeys")
+	apikeysGroup.Use(params.JWTMiddleware.Authenticate)
+	params.APIKeyHandler.RegisterRoutes(apikeysGroup)
 
-	params.SessionHandler.RegisterRoutes(api.Group("/metrics"))
+	metricsGroup := api.Group("/metrics")
+	metricsGroup.Use(params.JWTMiddleware.Authenticate)
+	params.SessionHandler.RegisterRoutes(metricsGroup)
 
 	params.AgentConnHandler.RegisterRoutes(api.Group("/agents/connect"))
 
@@ -69,48 +81,43 @@ func ProvideLogger() *slog.Logger {
 	}))
 }
 
-func ProvideSessionManager(cfg *Config) *user.SessionManager {
-	return user.NewSessionManager(cfg.HMACKey, cfg.CookieSecure, cfg.CookieDomain)
+func ProvideJWTValidator(cfg *Config) *auth.JWTValidator {
+	return auth.NewJWTValidator(cfg.JWTSecret)
 }
 
-func ProvideGoogleProvider(cfg *Config) *user.GoogleProvider {
-	return user.NewGoogleProvider(cfg.GoogleClientID, cfg.GoogleClientSecret, cfg.GoogleRedirectURL)
+func ProvideJWTMiddleware(validator *auth.JWTValidator, userStore *user.Store) *auth.Middleware {
+	return auth.NewMiddleware(validator, userStore)
 }
 
-func ProvideGitHubProvider(cfg *Config) *user.GitHubProvider {
-	return user.NewGitHubProvider(cfg.GitHubClientID, cfg.GitHubClientSecret, cfg.GitHubRedirectURL)
+func ProvideUserHandler(store *user.Store, logger *slog.Logger) *user.Handler {
+	return user.NewHandler(store, logger.With("handler", "user"))
 }
 
-func ProvideUserHandler(store *user.Store, google *user.GoogleProvider, github *user.GitHubProvider, sessions *user.SessionManager, cfg *Config, logger *slog.Logger) *user.Handler {
-	return user.NewHandler(store, google, github, sessions, cfg.AllowedSchemes, logger.With("handler", "user"))
+func ProvideAgentHandler(store *agent.Store, userStore *user.Store, embeddings agent.EmbeddingService, logger *slog.Logger) *agent.Handler {
+	return agent.NewHandler(store, userStore, embeddings, logger.With("handler", "agent"))
 }
 
-func ProvideAgentHandler(store *agent.Store, userStore *user.Store, sessions *user.SessionManager, embeddings agent.EmbeddingService, logger *slog.Logger) *agent.Handler {
-	return agent.NewHandler(store, userStore, sessions, embeddings, logger.With("handler", "agent"))
+func ProvideMarketplaceHandler(store *agent.Store, embeddings agent.EmbeddingService, logger *slog.Logger) *agent.MarketplaceHandler {
+	return agent.NewMarketplaceHandler(store, embeddings, logger.With("handler", "marketplace"))
 }
 
-func ProvideMarketplaceHandler(store *agent.Store, sessions *user.SessionManager, embeddings agent.EmbeddingService, logger *slog.Logger) *agent.MarketplaceHandler {
-	return agent.NewMarketplaceHandler(store, sessions, embeddings, logger.With("handler", "marketplace"))
+func ProvideInstallHandler(store *agent.Store, logger *slog.Logger) *agent.InstallHandler {
+	return agent.NewInstallHandler(store, logger.With("handler", "install"))
 }
 
-func ProvideInstallHandler(store *agent.Store, sessions *user.SessionManager, logger *slog.Logger) *agent.InstallHandler {
-	return agent.NewInstallHandler(store, sessions, logger.With("handler", "install"))
+func ProvideAPIKeyHandler(store *apikey.Store, userStore *user.Store, logger *slog.Logger) *apikey.Handler {
+	return apikey.NewHandler(store, userStore, logger.With("handler", "apikey"))
 }
 
-func ProvideAPIKeyHandler(store *apikey.Store, userStore *user.Store, sessions *user.SessionManager, logger *slog.Logger) *apikey.Handler {
-	return apikey.NewHandler(store, userStore, sessions, logger.With("handler", "apikey"))
-}
-
-func ProvideSessionHandler(store *session.Store, agentStore *agent.Store, userStore *user.Store, sessions *user.SessionManager, logger *slog.Logger) *session.Handler {
-	return session.NewHandler(store, agentStore, userStore, sessions, logger.With("handler", "session"))
+func ProvideSessionHandler(store *session.Store, agentStore *agent.Store, userStore *user.Store, logger *slog.Logger) *session.Handler {
+	return session.NewHandler(store, agentStore, userStore, logger.With("handler", "session"))
 }
 
 var HandlersModule = fx.Options(
 	fx.Provide(
 		ProvideLogger,
-		ProvideSessionManager,
-		ProvideGoogleProvider,
-		ProvideGitHubProvider,
+		ProvideJWTValidator,
+		ProvideJWTMiddleware,
 		ProvideEmbeddingService,
 		ProvideUserHandler,
 		ProvideAgentHandler,

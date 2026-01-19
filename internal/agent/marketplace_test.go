@@ -11,6 +11,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/eleven-am/voice-backend/internal/auth"
 	"github.com/eleven-am/voice-backend/internal/dto"
 	"github.com/eleven-am/voice-backend/internal/shared"
 	"github.com/eleven-am/voice-backend/internal/user"
@@ -20,28 +21,31 @@ import (
 	gormlogger "gorm.io/gorm/logger"
 )
 
-func newTestMarketplaceHandler() (*MarketplaceHandler, *user.SessionManager) {
-	sm := user.NewSessionManager([]byte("test-key"), false, "")
+func newTestMarketplaceHandler() *MarketplaceHandler {
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
-	h := NewMarketplaceHandler(nil, sm, nil, logger)
-	return h, sm
+	return NewMarketplaceHandler(nil, nil, logger)
+}
+
+func setMarketplaceAuthClaims(c echo.Context, userID string) {
+	claims := &auth.Claims{
+		UserID: userID,
+		Email:  userID + "@test.com",
+		Name:   "Test User",
+	}
+	auth.SetClaimsForTest(c, claims)
 }
 
 func TestNewMarketplaceHandler(t *testing.T) {
-	sm := user.NewSessionManager([]byte("key"), false, "")
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
-	h := NewMarketplaceHandler(nil, sm, nil, logger)
+	h := NewMarketplaceHandler(nil, nil, logger)
 
 	if h == nil {
 		t.Fatal("handler should not be nil")
 	}
-	if h.sessions != sm {
-		t.Error("session manager should be set")
-	}
 }
 
 func TestMarketplaceHandler_RegisterRoutes(t *testing.T) {
-	h, _ := newTestMarketplaceHandler()
+	h := newTestMarketplaceHandler()
 	e := echo.New()
 	g := e.Group("/store")
 
@@ -67,9 +71,8 @@ func TestMarketplaceHandler_RegisterRoutes(t *testing.T) {
 	}
 }
 
-
 func TestMarketplaceHandler_Search_MissingQuery(t *testing.T) {
-	h, _ := newTestMarketplaceHandler()
+	h := newTestMarketplaceHandler()
 	e := echo.New()
 
 	req := httptest.NewRequest(http.MethodGet, "/store/agents/search", nil)
@@ -87,7 +90,7 @@ func TestMarketplaceHandler_Search_MissingQuery(t *testing.T) {
 }
 
 func TestMarketplaceHandler_Search_NoEmbeddingService(t *testing.T) {
-	h, _ := newTestMarketplaceHandler()
+	h := newTestMarketplaceHandler()
 	e := echo.New()
 
 	req := httptest.NewRequest(http.MethodGet, "/store/agents/search?q=test", nil)
@@ -104,9 +107,8 @@ func TestMarketplaceHandler_Search_NoEmbeddingService(t *testing.T) {
 	}
 }
 
-
 func TestMarketplaceHandler_CreateReview_Unauthorized(t *testing.T) {
-	h, _ := newTestMarketplaceHandler()
+	h := newTestMarketplaceHandler()
 	e := echo.New()
 
 	req := httptest.NewRequest(http.MethodPost, "/store/agents/agent_123/reviews", nil)
@@ -284,7 +286,7 @@ func TestCreateReviewRequest_JSON(t *testing.T) {
 	}
 }
 
-func newTestMarketplaceHandlerWithDB(t *testing.T) (*MarketplaceHandler, *user.SessionManager, *Store, *user.Store) {
+func newTestMarketplaceHandlerWithDB(t *testing.T) (*MarketplaceHandler, *Store, *user.Store) {
 	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{
 		Logger: gormlogger.Default.LogMode(gormlogger.Silent),
 	})
@@ -298,33 +300,13 @@ func newTestMarketplaceHandlerWithDB(t *testing.T) (*MarketplaceHandler, *user.S
 	store := NewStore(db, nil)
 	store.Migrate()
 
-	sm := user.NewSessionManager([]byte("test-secret-key-32-bytes-long!!"), false, "")
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
-	h := NewMarketplaceHandler(store, sm, nil, logger)
-	return h, sm, store, userStore
-}
-
-func createMarketplaceSessionCookies(_ *testing.T, sm *user.SessionManager, userID string) (sessionCookie, csrfCookie *http.Cookie, csrfToken string) {
-	e := echo.New()
-	rec := httptest.NewRecorder()
-	c := e.NewContext(httptest.NewRequest(http.MethodGet, "/", nil), rec)
-	sm.Create(c, userID)
-
-	cookies := rec.Result().Cookies()
-	for _, cookie := range cookies {
-		if cookie.Name == "voice_session" {
-			sessionCookie = cookie
-		}
-		if cookie.Name == "voice_csrf" {
-			csrfCookie = cookie
-			csrfToken = cookie.Value
-		}
-	}
-	return
+	h := NewMarketplaceHandler(store, nil, logger)
+	return h, store, userStore
 }
 
 func TestMarketplaceHandler_List_Success(t *testing.T) {
-	h, _, store, _ := newTestMarketplaceHandlerWithDB(t)
+	h, store, _ := newTestMarketplaceHandlerWithDB(t)
 	ctx := context.Background()
 
 	store.Create(ctx, &Agent{
@@ -361,7 +343,7 @@ func TestMarketplaceHandler_List_Success(t *testing.T) {
 }
 
 func TestMarketplaceHandler_Get_Success(t *testing.T) {
-	h, _, store, _ := newTestMarketplaceHandlerWithDB(t)
+	h, store, _ := newTestMarketplaceHandlerWithDB(t)
 	ctx := context.Background()
 
 	store.Create(ctx, &Agent{
@@ -388,7 +370,7 @@ func TestMarketplaceHandler_Get_Success(t *testing.T) {
 }
 
 func TestMarketplaceHandler_Get_NotFound(t *testing.T) {
-	h, _, _, _ := newTestMarketplaceHandlerWithDB(t)
+	h, _, _ := newTestMarketplaceHandlerWithDB(t)
 
 	e := echo.New()
 	req := httptest.NewRequest(http.MethodGet, "/store/agents/nonexistent", nil)
@@ -408,7 +390,7 @@ func TestMarketplaceHandler_Get_NotFound(t *testing.T) {
 }
 
 func TestMarketplaceHandler_Get_NotPublic(t *testing.T) {
-	h, _, store, _ := newTestMarketplaceHandlerWithDB(t)
+	h, store, _ := newTestMarketplaceHandlerWithDB(t)
 	ctx := context.Background()
 
 	store.Create(ctx, &Agent{
@@ -436,7 +418,7 @@ func TestMarketplaceHandler_Get_NotPublic(t *testing.T) {
 }
 
 func TestMarketplaceHandler_GetReviews_Success(t *testing.T) {
-	h, _, store, _ := newTestMarketplaceHandlerWithDB(t)
+	h, store, _ := newTestMarketplaceHandlerWithDB(t)
 	ctx := context.Background()
 
 	store.Create(ctx, &Agent{
@@ -478,7 +460,7 @@ func TestMarketplaceHandler_GetReviews_Success(t *testing.T) {
 }
 
 func TestMarketplaceHandler_GetReviews_AgentNotFound(t *testing.T) {
-	h, _, _, _ := newTestMarketplaceHandlerWithDB(t)
+	h, _, _ := newTestMarketplaceHandlerWithDB(t)
 
 	e := echo.New()
 	req := httptest.NewRequest(http.MethodGet, "/store/agents/nonexistent/reviews", nil)
@@ -498,7 +480,7 @@ func TestMarketplaceHandler_GetReviews_AgentNotFound(t *testing.T) {
 }
 
 func TestMarketplaceHandler_CreateReview_Success(t *testing.T) {
-	h, sm, store, userStore := newTestMarketplaceHandlerWithDB(t)
+	h, store, userStore := newTestMarketplaceHandlerWithDB(t)
 	ctx := context.Background()
 
 	userStore.Create(ctx, &user.User{
@@ -525,15 +507,11 @@ func TestMarketplaceHandler_CreateReview_Success(t *testing.T) {
 	req := httptest.NewRequest(http.MethodPost, "/store/agents/agent_to_review/reviews", strings.NewReader(body))
 	req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
 	rec := httptest.NewRecorder()
-
-	sessionCookie, csrfCookie, csrfToken := createMarketplaceSessionCookies(t, sm, "user_reviewer")
-	req.AddCookie(sessionCookie)
-	req.AddCookie(csrfCookie)
-	req.Header.Set("X-CSRF-Token", csrfToken)
-
 	c := e.NewContext(req, rec)
 	c.SetParamNames("id")
 	c.SetParamValues("agent_to_review")
+
+	setMarketplaceAuthClaims(c, "user_reviewer")
 
 	err := h.CreateReview(c)
 	if err != nil {
@@ -545,7 +523,7 @@ func TestMarketplaceHandler_CreateReview_Success(t *testing.T) {
 }
 
 func TestMarketplaceHandler_CreateReview_NotInstalled(t *testing.T) {
-	h, sm, store, userStore := newTestMarketplaceHandlerWithDB(t)
+	h, store, userStore := newTestMarketplaceHandlerWithDB(t)
 	ctx := context.Background()
 
 	userStore.Create(ctx, &user.User{
@@ -566,15 +544,11 @@ func TestMarketplaceHandler_CreateReview_NotInstalled(t *testing.T) {
 	req := httptest.NewRequest(http.MethodPost, "/store/agents/agent_no_install/reviews", strings.NewReader(body))
 	req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
 	rec := httptest.NewRecorder()
-
-	sessionCookie, csrfCookie, csrfToken := createMarketplaceSessionCookies(t, sm, "user_no_install")
-	req.AddCookie(sessionCookie)
-	req.AddCookie(csrfCookie)
-	req.Header.Set("X-CSRF-Token", csrfToken)
-
 	c := e.NewContext(req, rec)
 	c.SetParamNames("id")
 	c.SetParamValues("agent_no_install")
+
+	setMarketplaceAuthClaims(c, "user_no_install")
 
 	err := h.CreateReview(c)
 	if err == nil {
@@ -587,7 +561,7 @@ func TestMarketplaceHandler_CreateReview_NotInstalled(t *testing.T) {
 }
 
 func TestMarketplaceHandler_CreateReview_InvalidJSON(t *testing.T) {
-	h, sm, store, userStore := newTestMarketplaceHandlerWithDB(t)
+	h, store, userStore := newTestMarketplaceHandlerWithDB(t)
 	ctx := context.Background()
 
 	userStore.Create(ctx, &user.User{
@@ -614,15 +588,11 @@ func TestMarketplaceHandler_CreateReview_InvalidJSON(t *testing.T) {
 	req := httptest.NewRequest(http.MethodPost, "/store/agents/agent_review_inv/reviews", strings.NewReader(body))
 	req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
 	rec := httptest.NewRecorder()
-
-	sessionCookie, csrfCookie, csrfToken := createMarketplaceSessionCookies(t, sm, "user_review_inv")
-	req.AddCookie(sessionCookie)
-	req.AddCookie(csrfCookie)
-	req.Header.Set("X-CSRF-Token", csrfToken)
-
 	c := e.NewContext(req, rec)
 	c.SetParamNames("id")
 	c.SetParamValues("agent_review_inv")
+
+	setMarketplaceAuthClaims(c, "user_review_inv")
 
 	err := h.CreateReview(c)
 	if err == nil {
@@ -631,7 +601,7 @@ func TestMarketplaceHandler_CreateReview_InvalidJSON(t *testing.T) {
 }
 
 func TestMarketplaceHandler_CreateReview_AgentNotFound(t *testing.T) {
-	h, sm, _, userStore := newTestMarketplaceHandlerWithDB(t)
+	h, _, userStore := newTestMarketplaceHandlerWithDB(t)
 	ctx := context.Background()
 
 	userStore.Create(ctx, &user.User{
@@ -645,15 +615,11 @@ func TestMarketplaceHandler_CreateReview_AgentNotFound(t *testing.T) {
 	req := httptest.NewRequest(http.MethodPost, "/store/agents/nonexistent/reviews", strings.NewReader(body))
 	req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
 	rec := httptest.NewRecorder()
-
-	sessionCookie, csrfCookie, csrfToken := createMarketplaceSessionCookies(t, sm, "user_review_anf")
-	req.AddCookie(sessionCookie)
-	req.AddCookie(csrfCookie)
-	req.Header.Set("X-CSRF-Token", csrfToken)
-
 	c := e.NewContext(req, rec)
 	c.SetParamNames("id")
 	c.SetParamValues("nonexistent")
+
+	setMarketplaceAuthClaims(c, "user_review_anf")
 
 	err := h.CreateReview(c)
 	if err == nil {

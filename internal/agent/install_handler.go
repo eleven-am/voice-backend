@@ -5,23 +5,21 @@ import (
 	"log/slog"
 	"net/http"
 
+	"github.com/eleven-am/voice-backend/internal/auth"
 	"github.com/eleven-am/voice-backend/internal/dto"
 	"github.com/eleven-am/voice-backend/internal/shared"
-	"github.com/eleven-am/voice-backend/internal/user"
 	"github.com/labstack/echo/v4"
 )
 
 type InstallHandler struct {
-	store    *Store
-	sessions *user.SessionManager
-	logger   *slog.Logger
+	store  *Store
+	logger *slog.Logger
 }
 
-func NewInstallHandler(store *Store, sessions *user.SessionManager, logger *slog.Logger) *InstallHandler {
+func NewInstallHandler(store *Store, logger *slog.Logger) *InstallHandler {
 	return &InstallHandler{
-		store:    store,
-		sessions: sessions,
-		logger:   logger,
+		store:  store,
+		logger: logger,
 	}
 }
 
@@ -32,23 +30,9 @@ func (h *InstallHandler) RegisterRoutes(g *echo.Group) {
 	g.PUT("/:id/scopes", h.UpdateScopes)
 }
 
-// List godoc
-// @Summary      List installed agents
-// @Description  Returns all agents installed by the authenticated user
-// @Tags         installs
-// @Produce      json
-// @Success      200  {object}  dto.InstalledAgentsResponse
-// @Failure      401  {object}  shared.APIError
-// @Failure      500  {object}  shared.APIError
-// @Security     SessionAuth
-// @Router       /me/agents [get]
 func (h *InstallHandler) List(c echo.Context) error {
-	userID, csrf, err := h.sessions.Get(c)
+	userID, err := auth.RequireAuth(c)
 	if err != nil {
-		return shared.Unauthorized("auth_required", "authentication required")
-	}
-
-	if err := h.sessions.RequireCSRF(c, csrf); err != nil {
 		return err
 	}
 
@@ -78,29 +62,9 @@ func (h *InstallHandler) List(c echo.Context) error {
 	return c.JSON(http.StatusOK, dto.InstalledAgentsResponse{Agents: response})
 }
 
-// Install godoc
-// @Summary      Install an agent
-// @Description  Installs a public agent for the authenticated user
-// @Tags         installs
-// @Accept       json
-// @Produce      json
-// @Param        id       path      string            true  "Agent ID"
-// @Param        request  body      dto.InstallRequest true  "Installation options"
-// @Success      201      {object}  dto.InstalledAgentResponse
-// @Failure      400      {object}  shared.APIError
-// @Failure      401      {object}  shared.APIError
-// @Failure      404      {object}  shared.APIError
-// @Failure      409      {object}  shared.APIError
-// @Failure      500      {object}  shared.APIError
-// @Security     SessionAuth
-// @Router       /me/agents/{id}/install [post]
 func (h *InstallHandler) Install(c echo.Context) error {
-	userID, csrf, err := h.sessions.Get(c)
+	userID, err := auth.RequireAuth(c)
 	if err != nil {
-		return shared.Unauthorized("auth_required", "authentication required")
-	}
-
-	if err := h.sessions.RequireCSRF(c, csrf); err != nil {
 		return err
 	}
 
@@ -149,24 +113,9 @@ func (h *InstallHandler) Install(c echo.Context) error {
 	})
 }
 
-// Uninstall godoc
-// @Summary      Uninstall an agent
-// @Description  Removes an installed agent from the user's account
-// @Tags         installs
-// @Param        id  path  string  true  "Agent ID"
-// @Success      204  "No Content"
-// @Failure      401  {object}  shared.APIError
-// @Failure      404  {object}  shared.APIError
-// @Failure      500  {object}  shared.APIError
-// @Security     SessionAuth
-// @Router       /me/agents/{id} [delete]
 func (h *InstallHandler) Uninstall(c echo.Context) error {
-	userID, csrf, err := h.sessions.Get(c)
+	userID, err := auth.RequireAuth(c)
 	if err != nil {
-		return shared.Unauthorized("auth_required", "authentication required")
-	}
-
-	if err := h.sessions.RequireCSRF(c, csrf); err != nil {
 		return err
 	}
 
@@ -182,27 +131,9 @@ func (h *InstallHandler) Uninstall(c echo.Context) error {
 	return c.NoContent(http.StatusNoContent)
 }
 
-// UpdateScopes godoc
-// @Summary      Update agent scopes
-// @Description  Updates the granted scopes for an installed agent
-// @Tags         installs
-// @Accept       json
-// @Param        id       path  string                   true  "Agent ID"
-// @Param        request  body  dto.UpdateScopesRequest  true  "New scopes"
-// @Success      204  "No Content"
-// @Failure      400  {object}  shared.APIError
-// @Failure      401  {object}  shared.APIError
-// @Failure      404  {object}  shared.APIError
-// @Failure      500  {object}  shared.APIError
-// @Security     SessionAuth
-// @Router       /me/agents/{id}/scopes [put]
 func (h *InstallHandler) UpdateScopes(c echo.Context) error {
-	userID, csrf, err := h.sessions.Get(c)
+	userID, err := auth.RequireAuth(c)
 	if err != nil {
-		return shared.Unauthorized("auth_required", "authentication required")
-	}
-
-	if err := h.sessions.RequireCSRF(c, csrf); err != nil {
 		return err
 	}
 

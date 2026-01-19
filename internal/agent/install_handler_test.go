@@ -11,6 +11,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/eleven-am/voice-backend/internal/auth"
 	"github.com/eleven-am/voice-backend/internal/dto"
 	"github.com/eleven-am/voice-backend/internal/user"
 	"github.com/labstack/echo/v4"
@@ -19,28 +20,31 @@ import (
 	gormlogger "gorm.io/gorm/logger"
 )
 
-func newTestInstallHandler() (*InstallHandler, *user.SessionManager) {
-	sm := user.NewSessionManager([]byte("test-key"), false, "")
+func newTestInstallHandler() *InstallHandler {
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
-	h := NewInstallHandler(nil, sm, logger)
-	return h, sm
+	return NewInstallHandler(nil, logger)
+}
+
+func setInstallAuthClaims(c echo.Context, userID string) {
+	claims := &auth.Claims{
+		UserID: userID,
+		Email:  userID + "@test.com",
+		Name:   "Test User",
+	}
+	auth.SetClaimsForTest(c, claims)
 }
 
 func TestNewInstallHandler(t *testing.T) {
-	sm := user.NewSessionManager([]byte("key"), false, "")
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
-	h := NewInstallHandler(nil, sm, logger)
+	h := NewInstallHandler(nil, logger)
 
 	if h == nil {
 		t.Fatal("handler should not be nil")
 	}
-	if h.sessions != sm {
-		t.Error("session manager should be set")
-	}
 }
 
 func TestInstallHandler_RegisterRoutes(t *testing.T) {
-	h, _ := newTestInstallHandler()
+	h := newTestInstallHandler()
 	e := echo.New()
 	g := e.Group("/me/agents")
 
@@ -67,7 +71,7 @@ func TestInstallHandler_RegisterRoutes(t *testing.T) {
 }
 
 func TestInstallHandler_List_Unauthorized(t *testing.T) {
-	h, _ := newTestInstallHandler()
+	h := newTestInstallHandler()
 	e := echo.New()
 
 	req := httptest.NewRequest(http.MethodGet, "/me/agents", nil)
@@ -85,7 +89,7 @@ func TestInstallHandler_List_Unauthorized(t *testing.T) {
 }
 
 func TestInstallHandler_Install_Unauthorized(t *testing.T) {
-	h, _ := newTestInstallHandler()
+	h := newTestInstallHandler()
 	e := echo.New()
 
 	req := httptest.NewRequest(http.MethodPost, "/me/agents/agent_123/install", nil)
@@ -105,7 +109,7 @@ func TestInstallHandler_Install_Unauthorized(t *testing.T) {
 }
 
 func TestInstallHandler_Uninstall_Unauthorized(t *testing.T) {
-	h, _ := newTestInstallHandler()
+	h := newTestInstallHandler()
 	e := echo.New()
 
 	req := httptest.NewRequest(http.MethodDelete, "/me/agents/agent_123", nil)
@@ -125,7 +129,7 @@ func TestInstallHandler_Uninstall_Unauthorized(t *testing.T) {
 }
 
 func TestInstallHandler_UpdateScopes_Unauthorized(t *testing.T) {
-	h, _ := newTestInstallHandler()
+	h := newTestInstallHandler()
 	e := echo.New()
 
 	req := httptest.NewRequest(http.MethodPut, "/me/agents/agent_123/scopes", nil)
@@ -259,7 +263,7 @@ func TestAgentInstall_Fields(t *testing.T) {
 	}
 }
 
-func newTestInstallHandlerWithDB(t *testing.T) (*InstallHandler, *user.SessionManager, *Store, *user.Store) {
+func newTestInstallHandlerWithDB(t *testing.T) (*InstallHandler, *Store, *user.Store) {
 	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{
 		Logger: gormlogger.Default.LogMode(gormlogger.Silent),
 	})
@@ -273,33 +277,13 @@ func newTestInstallHandlerWithDB(t *testing.T) (*InstallHandler, *user.SessionMa
 	store := NewStore(db, nil)
 	store.Migrate()
 
-	sm := user.NewSessionManager([]byte("test-secret-key-32-bytes-long!!"), false, "")
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
-	h := NewInstallHandler(store, sm, logger)
-	return h, sm, store, userStore
-}
-
-func createInstallSessionCookies(_ *testing.T, sm *user.SessionManager, userID string) (sessionCookie, csrfCookie *http.Cookie, csrfToken string) {
-	e := echo.New()
-	rec := httptest.NewRecorder()
-	c := e.NewContext(httptest.NewRequest(http.MethodGet, "/", nil), rec)
-	sm.Create(c, userID)
-
-	cookies := rec.Result().Cookies()
-	for _, cookie := range cookies {
-		if cookie.Name == "voice_session" {
-			sessionCookie = cookie
-		}
-		if cookie.Name == "voice_csrf" {
-			csrfCookie = cookie
-			csrfToken = cookie.Value
-		}
-	}
-	return
+	h := NewInstallHandler(store, logger)
+	return h, store, userStore
 }
 
 func TestInstallHandler_List_Success(t *testing.T) {
-	h, sm, store, userStore := newTestInstallHandlerWithDB(t)
+	h, store, userStore := newTestInstallHandlerWithDB(t)
 	ctx := context.Background()
 
 	userStore.Create(ctx, &user.User{
@@ -335,13 +319,9 @@ func TestInstallHandler_List_Success(t *testing.T) {
 	e := echo.New()
 	req := httptest.NewRequest(http.MethodGet, "/me/agents", nil)
 	rec := httptest.NewRecorder()
-
-	sessionCookie, csrfCookie, csrfToken := createInstallSessionCookies(t, sm, "user_install_list")
-	req.AddCookie(sessionCookie)
-	req.AddCookie(csrfCookie)
-	req.Header.Set("X-CSRF-Token", csrfToken)
-
 	c := e.NewContext(req, rec)
+
+	setInstallAuthClaims(c, "user_install_list")
 
 	err := h.List(c)
 	if err != nil {
@@ -353,7 +333,7 @@ func TestInstallHandler_List_Success(t *testing.T) {
 }
 
 func TestInstallHandler_Install_Success(t *testing.T) {
-	h, sm, store, userStore := newTestInstallHandlerWithDB(t)
+	h, store, userStore := newTestInstallHandlerWithDB(t)
 	ctx := context.Background()
 
 	userStore.Create(ctx, &user.User{
@@ -374,15 +354,11 @@ func TestInstallHandler_Install_Success(t *testing.T) {
 	req := httptest.NewRequest(http.MethodPost, "/me/agents/agent_to_install/install", strings.NewReader(body))
 	req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
 	rec := httptest.NewRecorder()
-
-	sessionCookie, csrfCookie, csrfToken := createInstallSessionCookies(t, sm, "user_installer")
-	req.AddCookie(sessionCookie)
-	req.AddCookie(csrfCookie)
-	req.Header.Set("X-CSRF-Token", csrfToken)
-
 	c := e.NewContext(req, rec)
 	c.SetParamNames("id")
 	c.SetParamValues("agent_to_install")
+
+	setInstallAuthClaims(c, "user_installer")
 
 	err := h.Install(c)
 	if err != nil {
@@ -394,7 +370,7 @@ func TestInstallHandler_Install_Success(t *testing.T) {
 }
 
 func TestInstallHandler_Install_AgentNotFound(t *testing.T) {
-	h, sm, _, userStore := newTestInstallHandlerWithDB(t)
+	h, _, userStore := newTestInstallHandlerWithDB(t)
 	ctx := context.Background()
 
 	userStore.Create(ctx, &user.User{
@@ -408,15 +384,11 @@ func TestInstallHandler_Install_AgentNotFound(t *testing.T) {
 	req := httptest.NewRequest(http.MethodPost, "/me/agents/nonexistent/install", strings.NewReader(body))
 	req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
 	rec := httptest.NewRecorder()
-
-	sessionCookie, csrfCookie, csrfToken := createInstallSessionCookies(t, sm, "user_install_nf")
-	req.AddCookie(sessionCookie)
-	req.AddCookie(csrfCookie)
-	req.Header.Set("X-CSRF-Token", csrfToken)
-
 	c := e.NewContext(req, rec)
 	c.SetParamNames("id")
 	c.SetParamValues("nonexistent")
+
+	setInstallAuthClaims(c, "user_install_nf")
 
 	err := h.Install(c)
 	if err == nil {
@@ -429,7 +401,7 @@ func TestInstallHandler_Install_AgentNotFound(t *testing.T) {
 }
 
 func TestInstallHandler_Install_PrivateAgent(t *testing.T) {
-	h, sm, store, userStore := newTestInstallHandlerWithDB(t)
+	h, store, userStore := newTestInstallHandlerWithDB(t)
 	ctx := context.Background()
 
 	userStore.Create(ctx, &user.User{
@@ -450,15 +422,11 @@ func TestInstallHandler_Install_PrivateAgent(t *testing.T) {
 	req := httptest.NewRequest(http.MethodPost, "/me/agents/agent_private/install", strings.NewReader(body))
 	req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
 	rec := httptest.NewRecorder()
-
-	sessionCookie, csrfCookie, csrfToken := createInstallSessionCookies(t, sm, "user_install_priv")
-	req.AddCookie(sessionCookie)
-	req.AddCookie(csrfCookie)
-	req.Header.Set("X-CSRF-Token", csrfToken)
-
 	c := e.NewContext(req, rec)
 	c.SetParamNames("id")
 	c.SetParamValues("agent_private")
+
+	setInstallAuthClaims(c, "user_install_priv")
 
 	err := h.Install(c)
 	if err == nil {
@@ -475,7 +443,7 @@ func TestInstallHandler_Uninstall_Success(t *testing.T) {
 }
 
 func TestInstallHandler_UpdateScopes_Success(t *testing.T) {
-	h, sm, store, userStore := newTestInstallHandlerWithDB(t)
+	h, store, userStore := newTestInstallHandlerWithDB(t)
 	ctx := context.Background()
 
 	userStore.Create(ctx, &user.User{
@@ -503,15 +471,11 @@ func TestInstallHandler_UpdateScopes_Success(t *testing.T) {
 	req := httptest.NewRequest(http.MethodPut, "/me/agents/agent_scopes/scopes", strings.NewReader(body))
 	req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
 	rec := httptest.NewRecorder()
-
-	sessionCookie, csrfCookie, csrfToken := createInstallSessionCookies(t, sm, "user_update_scopes")
-	req.AddCookie(sessionCookie)
-	req.AddCookie(csrfCookie)
-	req.Header.Set("X-CSRF-Token", csrfToken)
-
 	c := e.NewContext(req, rec)
 	c.SetParamNames("id")
 	c.SetParamValues("agent_scopes")
+
+	setInstallAuthClaims(c, "user_update_scopes")
 
 	err := h.UpdateScopes(c)
 	if err != nil {
@@ -523,7 +487,7 @@ func TestInstallHandler_UpdateScopes_Success(t *testing.T) {
 }
 
 func TestInstallHandler_UpdateScopes_NotInstalled(t *testing.T) {
-	h, sm, store, userStore := newTestInstallHandlerWithDB(t)
+	h, store, userStore := newTestInstallHandlerWithDB(t)
 	ctx := context.Background()
 
 	userStore.Create(ctx, &user.User{
@@ -544,15 +508,11 @@ func TestInstallHandler_UpdateScopes_NotInstalled(t *testing.T) {
 	req := httptest.NewRequest(http.MethodPut, "/me/agents/agent_no_inst/scopes", strings.NewReader(body))
 	req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
 	rec := httptest.NewRecorder()
-
-	sessionCookie, csrfCookie, csrfToken := createInstallSessionCookies(t, sm, "user_no_inst")
-	req.AddCookie(sessionCookie)
-	req.AddCookie(csrfCookie)
-	req.Header.Set("X-CSRF-Token", csrfToken)
-
 	c := e.NewContext(req, rec)
 	c.SetParamNames("id")
 	c.SetParamValues("agent_no_inst")
+
+	setInstallAuthClaims(c, "user_no_inst")
 
 	err := h.UpdateScopes(c)
 	if err == nil {
@@ -565,7 +525,7 @@ func TestInstallHandler_UpdateScopes_NotInstalled(t *testing.T) {
 }
 
 func TestInstallHandler_Install_InvalidJSON(t *testing.T) {
-	h, sm, store, userStore := newTestInstallHandlerWithDB(t)
+	h, store, userStore := newTestInstallHandlerWithDB(t)
 	ctx := context.Background()
 
 	userStore.Create(ctx, &user.User{
@@ -586,15 +546,11 @@ func TestInstallHandler_Install_InvalidJSON(t *testing.T) {
 	req := httptest.NewRequest(http.MethodPost, "/me/agents/agent_inst_invalid/install", strings.NewReader(body))
 	req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
 	rec := httptest.NewRecorder()
-
-	sessionCookie, csrfCookie, csrfToken := createInstallSessionCookies(t, sm, "user_inst_invalid")
-	req.AddCookie(sessionCookie)
-	req.AddCookie(csrfCookie)
-	req.Header.Set("X-CSRF-Token", csrfToken)
-
 	c := e.NewContext(req, rec)
 	c.SetParamNames("id")
 	c.SetParamValues("agent_inst_invalid")
+
+	setInstallAuthClaims(c, "user_inst_invalid")
 
 	err := h.Install(c)
 	if err == nil {
@@ -603,7 +559,7 @@ func TestInstallHandler_Install_InvalidJSON(t *testing.T) {
 }
 
 func TestInstallHandler_UpdateScopes_InvalidJSON(t *testing.T) {
-	h, sm, store, userStore := newTestInstallHandlerWithDB(t)
+	h, store, userStore := newTestInstallHandlerWithDB(t)
 	ctx := context.Background()
 
 	userStore.Create(ctx, &user.User{
@@ -630,15 +586,11 @@ func TestInstallHandler_UpdateScopes_InvalidJSON(t *testing.T) {
 	req := httptest.NewRequest(http.MethodPut, "/me/agents/agent_scopes_invalid/scopes", strings.NewReader(body))
 	req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
 	rec := httptest.NewRecorder()
-
-	sessionCookie, csrfCookie, csrfToken := createInstallSessionCookies(t, sm, "user_scopes_invalid")
-	req.AddCookie(sessionCookie)
-	req.AddCookie(csrfCookie)
-	req.Header.Set("X-CSRF-Token", csrfToken)
-
 	c := e.NewContext(req, rec)
 	c.SetParamNames("id")
 	c.SetParamValues("agent_scopes_invalid")
+
+	setInstallAuthClaims(c, "user_scopes_invalid")
 
 	err := h.UpdateScopes(c)
 	if err == nil {

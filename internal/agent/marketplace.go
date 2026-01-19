@@ -5,23 +5,21 @@ import (
 	"net/http"
 	"strconv"
 
+	"github.com/eleven-am/voice-backend/internal/auth"
 	"github.com/eleven-am/voice-backend/internal/dto"
 	"github.com/eleven-am/voice-backend/internal/shared"
-	"github.com/eleven-am/voice-backend/internal/user"
 	"github.com/labstack/echo/v4"
 )
 
 type MarketplaceHandler struct {
 	store      *Store
-	sessions   *user.SessionManager
 	embeddings EmbeddingService
 	logger     *slog.Logger
 }
 
-func NewMarketplaceHandler(store *Store, sessions *user.SessionManager, embeddings EmbeddingService, logger *slog.Logger) *MarketplaceHandler {
+func NewMarketplaceHandler(store *Store, embeddings EmbeddingService, logger *slog.Logger) *MarketplaceHandler {
 	return &MarketplaceHandler{
 		store:      store,
-		sessions:   sessions,
 		embeddings: embeddings,
 		logger:     logger,
 	}
@@ -50,17 +48,6 @@ func agentToMarketplaceResponse(a *Agent) dto.MarketplaceAgentResponse {
 	}
 }
 
-// List godoc
-// @Summary      List public agents
-// @Description  Returns paginated list of public agents in the marketplace
-// @Tags         marketplace
-// @Produce      json
-// @Param        limit     query     int     false  "Number of results (default 20, max 100)"
-// @Param        offset    query     int     false  "Offset for pagination"
-// @Param        category  query     string  false  "Filter by category"
-// @Success      200       {object}  dto.MarketplaceListResponse
-// @Failure      500       {object}  shared.APIError
-// @Router       /store/agents [get]
 func (h *MarketplaceHandler) List(c echo.Context) error {
 	limitStr := c.QueryParam("limit")
 	offsetStr := c.QueryParam("offset")
@@ -104,16 +91,6 @@ func (h *MarketplaceHandler) List(c echo.Context) error {
 	})
 }
 
-// Get godoc
-// @Summary      Get a public agent
-// @Description  Returns details of a public agent by ID
-// @Tags         marketplace
-// @Produce      json
-// @Param        id   path      string  true  "Agent ID"
-// @Success      200  {object}  dto.MarketplaceAgentResponse
-// @Failure      404  {object}  shared.APIError
-// @Failure      500  {object}  shared.APIError
-// @Router       /store/agents/{id} [get]
 func (h *MarketplaceHandler) Get(c echo.Context) error {
 	agentID := c.Param("id")
 
@@ -132,17 +109,6 @@ func (h *MarketplaceHandler) Get(c echo.Context) error {
 	return c.JSON(http.StatusOK, agentToMarketplaceResponse(agent))
 }
 
-// Search godoc
-// @Summary      Search agents
-// @Description  Searches public agents using semantic search
-// @Tags         marketplace
-// @Produce      json
-// @Param        q      query     string  true   "Search query"
-// @Param        limit  query     int     false  "Number of results (default 10, max 50)"
-// @Success      200    {object}  dto.MarketplaceSearchResponse
-// @Failure      400    {object}  shared.APIError
-// @Failure      500    {object}  shared.APIError
-// @Router       /store/agents/search [get]
 func (h *MarketplaceHandler) Search(c echo.Context) error {
 	query := c.QueryParam("q")
 	limitStr := c.QueryParam("limit")
@@ -202,18 +168,6 @@ func reviewToResponse(r *AgentReview) dto.ReviewResponse {
 	return resp
 }
 
-// GetReviews godoc
-// @Summary      Get agent reviews
-// @Description  Returns paginated list of reviews for a public agent
-// @Tags         marketplace
-// @Produce      json
-// @Param        id      path      string  true   "Agent ID"
-// @Param        limit   query     int     false  "Number of results (default 20, max 100)"
-// @Param        offset  query     int     false  "Offset for pagination"
-// @Success      200     {object}  dto.ReviewListResponse
-// @Failure      404     {object}  shared.APIError
-// @Failure      500     {object}  shared.APIError
-// @Router       /store/agents/{id}/reviews [get]
 func (h *MarketplaceHandler) GetReviews(c echo.Context) error {
 	agentID := c.Param("id")
 	limitStr := c.QueryParam("limit")
@@ -262,30 +216,9 @@ func (h *MarketplaceHandler) GetReviews(c echo.Context) error {
 	})
 }
 
-// CreateReview godoc
-// @Summary      Create a review
-// @Description  Creates a review for an installed agent
-// @Tags         marketplace
-// @Accept       json
-// @Produce      json
-// @Param        id       path      string                  true  "Agent ID"
-// @Param        request  body      dto.CreateReviewRequest true  "Review content"
-// @Success      201      {object}  dto.ReviewResponse
-// @Failure      400      {object}  shared.APIError
-// @Failure      401      {object}  shared.APIError
-// @Failure      403      {object}  shared.APIError
-// @Failure      404      {object}  shared.APIError
-// @Failure      409      {object}  shared.APIError
-// @Failure      500      {object}  shared.APIError
-// @Security     SessionAuth
-// @Router       /store/agents/{id}/reviews [post]
 func (h *MarketplaceHandler) CreateReview(c echo.Context) error {
-	userID, csrf, err := h.sessions.Get(c)
+	userID, err := auth.RequireAuth(c)
 	if err != nil {
-		return shared.Unauthorized("auth_required", "authentication required")
-	}
-
-	if err := h.sessions.RequireCSRF(c, csrf); err != nil {
 		return err
 	}
 

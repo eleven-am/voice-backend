@@ -8,13 +8,13 @@ import (
 
 	"github.com/eleven-am/voice-backend/internal/apikey"
 	"github.com/eleven-am/voice-backend/internal/audio"
+	"github.com/eleven-am/voice-backend/internal/auth"
 	"github.com/eleven-am/voice-backend/internal/gateway"
 	"github.com/eleven-am/voice-backend/internal/realtime"
 	"github.com/eleven-am/voice-backend/internal/router"
 	"github.com/eleven-am/voice-backend/internal/synthesis"
 	"github.com/eleven-am/voice-backend/internal/transcription"
 	"github.com/eleven-am/voice-backend/internal/transport"
-	"github.com/eleven-am/voice-backend/internal/user"
 	"github.com/eleven-am/voice-backend/internal/voicesession"
 	"github.com/labstack/echo/v4"
 	"go.uber.org/fx"
@@ -76,25 +76,24 @@ func ProvideVoiceStarter(sessionMgr *voicesession.Manager, logger *slog.Logger) 
 	})
 }
 
-func ProvideAuthFunc(sessions *user.SessionManager) transport.AuthFunc {
+func ProvideAuthFunc(validator *auth.JWTValidator) transport.AuthFunc {
 	return func(r *http.Request) (*transport.UserProfile, error) {
-		cookie, err := r.Cookie("voice_session")
-		if err != nil {
-			return nil, err
+		authHeader := r.Header.Get("Authorization")
+		if authHeader == "" {
+			return nil, errors.New("authorization header required")
 		}
 
-		payload, err := sessions.VerifyValue(cookie.Value)
-		if err != nil {
-			return nil, err
+		if !strings.HasPrefix(authHeader, "Bearer ") {
+			return nil, errors.New("bearer token required")
 		}
 
-		parts := strings.SplitN(payload, "|", 2)
-		if len(parts) < 1 || parts[0] == "" {
-			return nil, errors.New("invalid session")
+		claims, err := validator.Validate(authHeader)
+		if err != nil {
+			return nil, err
 		}
 
 		return &transport.UserProfile{
-			UserID: parts[0],
+			UserID: claims.UserID,
 		}, nil
 	}
 }

@@ -11,6 +11,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/eleven-am/voice-backend/internal/auth"
 	"github.com/eleven-am/voice-backend/internal/dto"
 	"github.com/eleven-am/voice-backend/internal/user"
 	"github.com/labstack/echo/v4"
@@ -19,28 +20,31 @@ import (
 	gormlogger "gorm.io/gorm/logger"
 )
 
-func newTestAPIKeyHandler() (*Handler, *user.SessionManager) {
-	sm := user.NewSessionManager([]byte("test-key"), false, "")
+func newTestAPIKeyHandler() *Handler {
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
-	h := NewHandler(nil, nil, sm, logger)
-	return h, sm
+	return NewHandler(nil, nil, logger)
+}
+
+func setAPIKeyAuthClaims(c echo.Context, userID string) {
+	claims := &auth.Claims{
+		UserID: userID,
+		Email:  userID + "@test.com",
+		Name:   "Test User",
+	}
+	auth.SetClaimsForTest(c, claims)
 }
 
 func TestNewAPIKeyHandler(t *testing.T) {
-	sm := user.NewSessionManager([]byte("key"), false, "")
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
-	h := NewHandler(nil, nil, sm, logger)
+	h := NewHandler(nil, nil, logger)
 
 	if h == nil {
 		t.Fatal("handler should not be nil")
 	}
-	if h.sessions != sm {
-		t.Error("session manager should be set")
-	}
 }
 
 func TestAPIKeyHandler_RegisterRoutes(t *testing.T) {
-	h, _ := newTestAPIKeyHandler()
+	h := newTestAPIKeyHandler()
 	e := echo.New()
 	g := e.Group("/apikeys")
 
@@ -65,7 +69,7 @@ func TestAPIKeyHandler_RegisterRoutes(t *testing.T) {
 }
 
 func TestAPIKeyHandler_List_Unauthorized(t *testing.T) {
-	h, _ := newTestAPIKeyHandler()
+	h := newTestAPIKeyHandler()
 	e := echo.New()
 
 	req := httptest.NewRequest(http.MethodGet, "/apikeys", nil)
@@ -83,7 +87,7 @@ func TestAPIKeyHandler_List_Unauthorized(t *testing.T) {
 }
 
 func TestAPIKeyHandler_Create_Unauthorized(t *testing.T) {
-	h, _ := newTestAPIKeyHandler()
+	h := newTestAPIKeyHandler()
 	e := echo.New()
 
 	req := httptest.NewRequest(http.MethodPost, "/apikeys", nil)
@@ -101,7 +105,7 @@ func TestAPIKeyHandler_Create_Unauthorized(t *testing.T) {
 }
 
 func TestAPIKeyHandler_Delete_Unauthorized(t *testing.T) {
-	h, _ := newTestAPIKeyHandler()
+	h := newTestAPIKeyHandler()
 	e := echo.New()
 
 	req := httptest.NewRequest(http.MethodDelete, "/apikeys/key_123", nil)
@@ -234,11 +238,11 @@ func TestKeyToResponse(t *testing.T) {
 	lastUsed := now.Add(-time.Hour)
 
 	key := &APIKey{
-		ID:        "key_123",
-		Name:      "Test Key",
-		Prefix:    "sk-voice-abc",
-		CreatedAt: now,
-		ExpiresAt: &expiresAt,
+		ID:         "key_123",
+		Name:       "Test Key",
+		Prefix:     "sk-voice-abc",
+		CreatedAt:  now,
+		ExpiresAt:  &expiresAt,
 		LastUsedAt: &lastUsed,
 	}
 
@@ -289,7 +293,7 @@ func TestOwnerType(t *testing.T) {
 	}
 }
 
-func newTestAPIKeyHandlerWithDB(t *testing.T) (*Handler, *user.SessionManager, *Store, *user.Store) {
+func newTestAPIKeyHandlerWithDB(t *testing.T) (*Handler, *Store, *user.Store) {
 	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{
 		Logger: gormlogger.Default.LogMode(gormlogger.Silent),
 	})
@@ -303,33 +307,13 @@ func newTestAPIKeyHandlerWithDB(t *testing.T) (*Handler, *user.SessionManager, *
 	store := NewStore(db)
 	store.Migrate()
 
-	sm := user.NewSessionManager([]byte("test-secret-key-32-bytes-long!!"), false, "")
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
-	h := NewHandler(store, userStore, sm, logger)
-	return h, sm, store, userStore
-}
-
-func createAPIKeySessionCookies(_ *testing.T, sm *user.SessionManager, userID string) (sessionCookie, csrfCookie *http.Cookie, csrfToken string) {
-	e := echo.New()
-	rec := httptest.NewRecorder()
-	c := e.NewContext(httptest.NewRequest(http.MethodGet, "/", nil), rec)
-	sm.Create(c, userID)
-
-	cookies := rec.Result().Cookies()
-	for _, cookie := range cookies {
-		if cookie.Name == "voice_session" {
-			sessionCookie = cookie
-		}
-		if cookie.Name == "voice_csrf" {
-			csrfCookie = cookie
-			csrfToken = cookie.Value
-		}
-	}
-	return
+	h := NewHandler(store, userStore, logger)
+	return h, store, userStore
 }
 
 func TestAPIKeyHandler_List_Success(t *testing.T) {
-	h, sm, store, userStore := newTestAPIKeyHandlerWithDB(t)
+	h, store, userStore := newTestAPIKeyHandlerWithDB(t)
 	ctx := context.Background()
 
 	userStore.Create(ctx, &user.User{
@@ -353,13 +337,9 @@ func TestAPIKeyHandler_List_Success(t *testing.T) {
 	e := echo.New()
 	req := httptest.NewRequest(http.MethodGet, "/apikeys", nil)
 	rec := httptest.NewRecorder()
-
-	sessionCookie, csrfCookie, csrfToken := createAPIKeySessionCookies(t, sm, "user_apikey_list")
-	req.AddCookie(sessionCookie)
-	req.AddCookie(csrfCookie)
-	req.Header.Set("X-CSRF-Token", csrfToken)
-
 	c := e.NewContext(req, rec)
+
+	setAPIKeyAuthClaims(c, "user_apikey_list")
 
 	err := h.List(c)
 	if err != nil {
@@ -371,7 +351,7 @@ func TestAPIKeyHandler_List_Success(t *testing.T) {
 }
 
 func TestAPIKeyHandler_List_NotDeveloper(t *testing.T) {
-	h, sm, _, userStore := newTestAPIKeyHandlerWithDB(t)
+	h, _, userStore := newTestAPIKeyHandlerWithDB(t)
 	ctx := context.Background()
 
 	userStore.Create(ctx, &user.User{
@@ -384,13 +364,9 @@ func TestAPIKeyHandler_List_NotDeveloper(t *testing.T) {
 	e := echo.New()
 	req := httptest.NewRequest(http.MethodGet, "/apikeys", nil)
 	rec := httptest.NewRecorder()
-
-	sessionCookie, csrfCookie, csrfToken := createAPIKeySessionCookies(t, sm, "user_not_dev")
-	req.AddCookie(sessionCookie)
-	req.AddCookie(csrfCookie)
-	req.Header.Set("X-CSRF-Token", csrfToken)
-
 	c := e.NewContext(req, rec)
+
+	setAPIKeyAuthClaims(c, "user_not_dev")
 
 	err := h.List(c)
 	if err == nil {
@@ -403,7 +379,7 @@ func TestAPIKeyHandler_List_NotDeveloper(t *testing.T) {
 }
 
 func TestAPIKeyHandler_Create_Success(t *testing.T) {
-	h, sm, _, userStore := newTestAPIKeyHandlerWithDB(t)
+	h, _, userStore := newTestAPIKeyHandlerWithDB(t)
 	ctx := context.Background()
 
 	userStore.Create(ctx, &user.User{
@@ -418,13 +394,9 @@ func TestAPIKeyHandler_Create_Success(t *testing.T) {
 	req := httptest.NewRequest(http.MethodPost, "/apikeys", strings.NewReader(body))
 	req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
 	rec := httptest.NewRecorder()
-
-	sessionCookie, csrfCookie, csrfToken := createAPIKeySessionCookies(t, sm, "user_create_key")
-	req.AddCookie(sessionCookie)
-	req.AddCookie(csrfCookie)
-	req.Header.Set("X-CSRF-Token", csrfToken)
-
 	c := e.NewContext(req, rec)
+
+	setAPIKeyAuthClaims(c, "user_create_key")
 
 	err := h.Create(c)
 	if err != nil {
@@ -436,7 +408,7 @@ func TestAPIKeyHandler_Create_Success(t *testing.T) {
 }
 
 func TestAPIKeyHandler_Create_WithExpiry(t *testing.T) {
-	h, sm, _, userStore := newTestAPIKeyHandlerWithDB(t)
+	h, _, userStore := newTestAPIKeyHandlerWithDB(t)
 	ctx := context.Background()
 
 	userStore.Create(ctx, &user.User{
@@ -451,13 +423,9 @@ func TestAPIKeyHandler_Create_WithExpiry(t *testing.T) {
 	req := httptest.NewRequest(http.MethodPost, "/apikeys", strings.NewReader(body))
 	req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
 	rec := httptest.NewRecorder()
-
-	sessionCookie, csrfCookie, csrfToken := createAPIKeySessionCookies(t, sm, "user_create_exp")
-	req.AddCookie(sessionCookie)
-	req.AddCookie(csrfCookie)
-	req.Header.Set("X-CSRF-Token", csrfToken)
-
 	c := e.NewContext(req, rec)
+
+	setAPIKeyAuthClaims(c, "user_create_exp")
 
 	err := h.Create(c)
 	if err != nil {
@@ -469,7 +437,7 @@ func TestAPIKeyHandler_Create_WithExpiry(t *testing.T) {
 }
 
 func TestAPIKeyHandler_Create_InvalidJSON(t *testing.T) {
-	h, sm, _, userStore := newTestAPIKeyHandlerWithDB(t)
+	h, _, userStore := newTestAPIKeyHandlerWithDB(t)
 	ctx := context.Background()
 
 	userStore.Create(ctx, &user.User{
@@ -484,13 +452,9 @@ func TestAPIKeyHandler_Create_InvalidJSON(t *testing.T) {
 	req := httptest.NewRequest(http.MethodPost, "/apikeys", strings.NewReader(body))
 	req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
 	rec := httptest.NewRecorder()
-
-	sessionCookie, csrfCookie, csrfToken := createAPIKeySessionCookies(t, sm, "user_create_inv")
-	req.AddCookie(sessionCookie)
-	req.AddCookie(csrfCookie)
-	req.Header.Set("X-CSRF-Token", csrfToken)
-
 	c := e.NewContext(req, rec)
+
+	setAPIKeyAuthClaims(c, "user_create_inv")
 
 	err := h.Create(c)
 	if err == nil {
@@ -499,7 +463,7 @@ func TestAPIKeyHandler_Create_InvalidJSON(t *testing.T) {
 }
 
 func TestAPIKeyHandler_Delete_Success(t *testing.T) {
-	h, sm, store, userStore := newTestAPIKeyHandlerWithDB(t)
+	h, store, userStore := newTestAPIKeyHandlerWithDB(t)
 	ctx := context.Background()
 
 	userStore.Create(ctx, &user.User{
@@ -519,15 +483,11 @@ func TestAPIKeyHandler_Delete_Success(t *testing.T) {
 	e := echo.New()
 	req := httptest.NewRequest(http.MethodDelete, "/apikeys/"+key.ID, nil)
 	rec := httptest.NewRecorder()
-
-	sessionCookie, csrfCookie, csrfToken := createAPIKeySessionCookies(t, sm, "user_delete_key")
-	req.AddCookie(sessionCookie)
-	req.AddCookie(csrfCookie)
-	req.Header.Set("X-CSRF-Token", csrfToken)
-
 	c := e.NewContext(req, rec)
 	c.SetParamNames("id")
 	c.SetParamValues(key.ID)
+
+	setAPIKeyAuthClaims(c, "user_delete_key")
 
 	err := h.Delete(c)
 	if err != nil {
@@ -539,7 +499,7 @@ func TestAPIKeyHandler_Delete_Success(t *testing.T) {
 }
 
 func TestAPIKeyHandler_Delete_NotFound(t *testing.T) {
-	h, sm, _, userStore := newTestAPIKeyHandlerWithDB(t)
+	h, _, userStore := newTestAPIKeyHandlerWithDB(t)
 	ctx := context.Background()
 
 	userStore.Create(ctx, &user.User{
@@ -552,15 +512,11 @@ func TestAPIKeyHandler_Delete_NotFound(t *testing.T) {
 	e := echo.New()
 	req := httptest.NewRequest(http.MethodDelete, "/apikeys/nonexistent", nil)
 	rec := httptest.NewRecorder()
-
-	sessionCookie, csrfCookie, csrfToken := createAPIKeySessionCookies(t, sm, "user_del_nf")
-	req.AddCookie(sessionCookie)
-	req.AddCookie(csrfCookie)
-	req.Header.Set("X-CSRF-Token", csrfToken)
-
 	c := e.NewContext(req, rec)
 	c.SetParamNames("id")
 	c.SetParamValues("nonexistent")
+
+	setAPIKeyAuthClaims(c, "user_del_nf")
 
 	err := h.Delete(c)
 	if err == nil {
@@ -573,7 +529,7 @@ func TestAPIKeyHandler_Delete_NotFound(t *testing.T) {
 }
 
 func TestAPIKeyHandler_Delete_NotOwner(t *testing.T) {
-	h, sm, store, userStore := newTestAPIKeyHandlerWithDB(t)
+	h, store, userStore := newTestAPIKeyHandlerWithDB(t)
 	ctx := context.Background()
 
 	userStore.Create(ctx, &user.User{
@@ -599,15 +555,11 @@ func TestAPIKeyHandler_Delete_NotOwner(t *testing.T) {
 	e := echo.New()
 	req := httptest.NewRequest(http.MethodDelete, "/apikeys/"+key.ID, nil)
 	rec := httptest.NewRecorder()
-
-	sessionCookie, csrfCookie, csrfToken := createAPIKeySessionCookies(t, sm, "user_other_key")
-	req.AddCookie(sessionCookie)
-	req.AddCookie(csrfCookie)
-	req.Header.Set("X-CSRF-Token", csrfToken)
-
 	c := e.NewContext(req, rec)
 	c.SetParamNames("id")
 	c.SetParamValues(key.ID)
+
+	setAPIKeyAuthClaims(c, "user_other_key")
 
 	err := h.Delete(c)
 	if err == nil {

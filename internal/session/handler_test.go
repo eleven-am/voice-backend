@@ -12,6 +12,7 @@ import (
 
 	"github.com/alicebob/miniredis/v2"
 	"github.com/eleven-am/voice-backend/internal/agent"
+	"github.com/eleven-am/voice-backend/internal/auth"
 	"github.com/eleven-am/voice-backend/internal/dto"
 	"github.com/eleven-am/voice-backend/internal/user"
 	"github.com/labstack/echo/v4"
@@ -21,28 +22,32 @@ import (
 	gormlogger "gorm.io/gorm/logger"
 )
 
-func newTestSessionHandler() (*Handler, *user.SessionManager) {
-	sm := user.NewSessionManager([]byte("test-key"), false, "")
+func newTestSessionHandler() *Handler {
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
-	h := NewHandler(nil, nil, nil, sm, logger)
-	return h, sm
+	h := NewHandler(nil, nil, nil, logger)
+	return h
+}
+
+func setSessionAuthClaims(c echo.Context, userID string) {
+	claims := &auth.Claims{
+		UserID: userID,
+		Email:  userID + "@test.com",
+		Name:   "Test User",
+	}
+	auth.SetClaimsForTest(c, claims)
 }
 
 func TestNewSessionHandler(t *testing.T) {
-	sm := user.NewSessionManager([]byte("key"), false, "")
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
-	h := NewHandler(nil, nil, nil, sm, logger)
+	h := NewHandler(nil, nil, nil, logger)
 
 	if h == nil {
 		t.Fatal("handler should not be nil")
 	}
-	if h.sessions != sm {
-		t.Error("session manager should be set")
-	}
 }
 
 func TestSessionHandler_RegisterRoutes(t *testing.T) {
-	h, _ := newTestSessionHandler()
+	h := newTestSessionHandler()
 	e := echo.New()
 	g := e.Group("/metrics")
 
@@ -67,7 +72,7 @@ func TestSessionHandler_RegisterRoutes(t *testing.T) {
 }
 
 func TestSessionHandler_GetMetrics_Unauthorized(t *testing.T) {
-	h, _ := newTestSessionHandler()
+	h := newTestSessionHandler()
 	e := echo.New()
 
 	req := httptest.NewRequest(http.MethodGet, "/metrics/agents/agent_123", nil)
@@ -87,7 +92,7 @@ func TestSessionHandler_GetMetrics_Unauthorized(t *testing.T) {
 }
 
 func TestSessionHandler_GetSummary_Unauthorized(t *testing.T) {
-	h, _ := newTestSessionHandler()
+	h := newTestSessionHandler()
 	e := echo.New()
 
 	req := httptest.NewRequest(http.MethodGet, "/metrics/agents/agent_123/summary", nil)
@@ -284,7 +289,7 @@ func TestSession_RedisKey(t *testing.T) {
 	}
 }
 
-func newTestSessionHandlerWithDB(t *testing.T) (*Handler, *user.SessionManager, *Store, *user.Store, *agent.Store, *miniredis.Miniredis) {
+func newTestSessionHandlerWithDB(t *testing.T) (*Handler, *Store, *user.Store, *agent.Store, *miniredis.Miniredis) {
 	mr, err := miniredis.Run()
 	if err != nil {
 		t.Fatalf("failed to start miniredis: %v", err)
@@ -306,81 +311,25 @@ func newTestSessionHandlerWithDB(t *testing.T) (*Handler, *user.SessionManager, 
 	agentStore := agent.NewStore(db, nil)
 	agentStore.Migrate()
 
-	sm := user.NewSessionManager([]byte("test-secret-key-32-bytes-long!!"), false, "")
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
 	sessionStore := NewStore(redisClient)
 
-	h := NewHandler(sessionStore, agentStore, userStore, sm, logger)
-	return h, sm, sessionStore, userStore, agentStore, mr
-}
-
-func createSessionCookies(_ *testing.T, sm *user.SessionManager, userID string) (sessionCookie, csrfCookie *http.Cookie, csrfToken string) {
-	e := echo.New()
-	rec := httptest.NewRecorder()
-	c := e.NewContext(httptest.NewRequest(http.MethodGet, "/", nil), rec)
-	sm.Create(c, userID)
-
-	cookies := rec.Result().Cookies()
-	for _, cookie := range cookies {
-		if cookie.Name == "voice_session" {
-			sessionCookie = cookie
-		}
-		if cookie.Name == "voice_csrf" {
-			csrfCookie = cookie
-			csrfToken = cookie.Value
-		}
-	}
-	return
-}
-
-func TestSessionHandler_GetMetrics_CSRFError(t *testing.T) {
-	h, sm, _, userStore, _, mr := newTestSessionHandlerWithDB(t)
-	defer mr.Close()
-
-	userID := "user_dev123"
-	ctx := context.Background()
-	userStore.Create(ctx, &user.User{
-		ID:          userID,
-		Email:       "dev@test.com",
-		IsDeveloper: true,
-	})
-
-	sessionCookie, csrfCookie, _ := createSessionCookies(t, sm, userID)
-
-	e := echo.New()
-	req := httptest.NewRequest(http.MethodGet, "/metrics/agents/agent_123", nil)
-	req.AddCookie(sessionCookie)
-	req.AddCookie(csrfCookie)
-	rec := httptest.NewRecorder()
-	c := e.NewContext(req, rec)
-	c.SetParamNames("id")
-	c.SetParamValues("agent_123")
-
-	err := h.GetMetrics(c)
-	if err == nil {
-		t.Fatal("expected error when CSRF token missing")
-	}
-	httpErr := err.(*echo.HTTPError)
-	if httpErr.Code != http.StatusForbidden {
-		t.Errorf("expected status %d, got %d", http.StatusForbidden, httpErr.Code)
-	}
+	h := NewHandler(sessionStore, agentStore, userStore, logger)
+	return h, sessionStore, userStore, agentStore, mr
 }
 
 func TestSessionHandler_GetMetrics_UserNotFound(t *testing.T) {
-	h, sm, _, _, _, mr := newTestSessionHandlerWithDB(t)
+	h, _, _, _, mr := newTestSessionHandlerWithDB(t)
 	defer mr.Close()
-
-	sessionCookie, csrfCookie, csrfToken := createSessionCookies(t, sm, "user_nonexistent")
 
 	e := echo.New()
 	req := httptest.NewRequest(http.MethodGet, "/metrics/agents/agent_123", nil)
-	req.AddCookie(sessionCookie)
-	req.AddCookie(csrfCookie)
-	req.Header.Set("X-CSRF-Token", csrfToken)
 	rec := httptest.NewRecorder()
 	c := e.NewContext(req, rec)
 	c.SetParamNames("id")
 	c.SetParamValues("agent_123")
+
+	setSessionAuthClaims(c, "user_nonexistent")
 
 	err := h.GetMetrics(c)
 	if err == nil {
@@ -393,7 +342,7 @@ func TestSessionHandler_GetMetrics_UserNotFound(t *testing.T) {
 }
 
 func TestSessionHandler_GetMetrics_NotDeveloper(t *testing.T) {
-	h, sm, _, userStore, _, mr := newTestSessionHandlerWithDB(t)
+	h, _, userStore, _, mr := newTestSessionHandlerWithDB(t)
 	defer mr.Close()
 
 	userID := "user_regular123"
@@ -404,17 +353,14 @@ func TestSessionHandler_GetMetrics_NotDeveloper(t *testing.T) {
 		IsDeveloper: false,
 	})
 
-	sessionCookie, csrfCookie, csrfToken := createSessionCookies(t, sm, userID)
-
 	e := echo.New()
 	req := httptest.NewRequest(http.MethodGet, "/metrics/agents/agent_123", nil)
-	req.AddCookie(sessionCookie)
-	req.AddCookie(csrfCookie)
-	req.Header.Set("X-CSRF-Token", csrfToken)
 	rec := httptest.NewRecorder()
 	c := e.NewContext(req, rec)
 	c.SetParamNames("id")
 	c.SetParamValues("agent_123")
+
+	setSessionAuthClaims(c, userID)
 
 	err := h.GetMetrics(c)
 	if err == nil {
@@ -427,7 +373,7 @@ func TestSessionHandler_GetMetrics_NotDeveloper(t *testing.T) {
 }
 
 func TestSessionHandler_GetMetrics_AgentNotFound(t *testing.T) {
-	h, sm, _, userStore, _, mr := newTestSessionHandlerWithDB(t)
+	h, _, userStore, _, mr := newTestSessionHandlerWithDB(t)
 	defer mr.Close()
 
 	userID := "user_dev123"
@@ -438,17 +384,14 @@ func TestSessionHandler_GetMetrics_AgentNotFound(t *testing.T) {
 		IsDeveloper: true,
 	})
 
-	sessionCookie, csrfCookie, csrfToken := createSessionCookies(t, sm, userID)
-
 	e := echo.New()
 	req := httptest.NewRequest(http.MethodGet, "/metrics/agents/agent_nonexistent", nil)
-	req.AddCookie(sessionCookie)
-	req.AddCookie(csrfCookie)
-	req.Header.Set("X-CSRF-Token", csrfToken)
 	rec := httptest.NewRecorder()
 	c := e.NewContext(req, rec)
 	c.SetParamNames("id")
 	c.SetParamValues("agent_nonexistent")
+
+	setSessionAuthClaims(c, userID)
 
 	err := h.GetMetrics(c)
 	if err == nil {
@@ -461,7 +404,7 @@ func TestSessionHandler_GetMetrics_AgentNotFound(t *testing.T) {
 }
 
 func TestSessionHandler_GetMetrics_NotOwner(t *testing.T) {
-	h, sm, _, userStore, agentStore, mr := newTestSessionHandlerWithDB(t)
+	h, _, userStore, agentStore, mr := newTestSessionHandlerWithDB(t)
 	defer mr.Close()
 
 	userID := "user_dev123"
@@ -484,17 +427,14 @@ func TestSessionHandler_GetMetrics_NotOwner(t *testing.T) {
 		Name:        "Other Agent",
 	})
 
-	sessionCookie, csrfCookie, csrfToken := createSessionCookies(t, sm, userID)
-
 	e := echo.New()
 	req := httptest.NewRequest(http.MethodGet, "/metrics/agents/agent_123", nil)
-	req.AddCookie(sessionCookie)
-	req.AddCookie(csrfCookie)
-	req.Header.Set("X-CSRF-Token", csrfToken)
 	rec := httptest.NewRecorder()
 	c := e.NewContext(req, rec)
 	c.SetParamNames("id")
 	c.SetParamValues("agent_123")
+
+	setSessionAuthClaims(c, userID)
 
 	err := h.GetMetrics(c)
 	if err == nil {
@@ -507,7 +447,7 @@ func TestSessionHandler_GetMetrics_NotOwner(t *testing.T) {
 }
 
 func TestSessionHandler_GetMetrics_Success(t *testing.T) {
-	h, sm, sessionStore, userStore, agentStore, mr := newTestSessionHandlerWithDB(t)
+	h, sessionStore, userStore, agentStore, mr := newTestSessionHandlerWithDB(t)
 	defer mr.Close()
 
 	userID := "user_dev123"
@@ -529,17 +469,14 @@ func TestSessionHandler_GetMetrics_Success(t *testing.T) {
 	sessionStore.IncrementUtterances(ctx, agentID)
 	sessionStore.IncrementResponses(ctx, agentID)
 
-	sessionCookie, csrfCookie, csrfToken := createSessionCookies(t, sm, userID)
-
 	e := echo.New()
 	req := httptest.NewRequest(http.MethodGet, "/metrics/agents/"+agentID, nil)
-	req.AddCookie(sessionCookie)
-	req.AddCookie(csrfCookie)
-	req.Header.Set("X-CSRF-Token", csrfToken)
 	rec := httptest.NewRecorder()
 	c := e.NewContext(req, rec)
 	c.SetParamNames("id")
 	c.SetParamValues(agentID)
+
+	setSessionAuthClaims(c, userID)
 
 	err := h.GetMetrics(c)
 	if err != nil {
@@ -564,7 +501,7 @@ func TestSessionHandler_GetMetrics_Success(t *testing.T) {
 }
 
 func TestSessionHandler_GetMetrics_CustomHours(t *testing.T) {
-	h, sm, _, userStore, agentStore, mr := newTestSessionHandlerWithDB(t)
+	h, _, userStore, agentStore, mr := newTestSessionHandlerWithDB(t)
 	defer mr.Close()
 
 	userID := "user_dev123"
@@ -582,17 +519,14 @@ func TestSessionHandler_GetMetrics_CustomHours(t *testing.T) {
 		Name:        "My Agent",
 	})
 
-	sessionCookie, csrfCookie, csrfToken := createSessionCookies(t, sm, userID)
-
 	e := echo.New()
 	req := httptest.NewRequest(http.MethodGet, "/metrics/agents/"+agentID+"?hours=48", nil)
-	req.AddCookie(sessionCookie)
-	req.AddCookie(csrfCookie)
-	req.Header.Set("X-CSRF-Token", csrfToken)
 	rec := httptest.NewRecorder()
 	c := e.NewContext(req, rec)
 	c.SetParamNames("id")
 	c.SetParamValues(agentID)
+
+	setSessionAuthClaims(c, userID)
 
 	err := h.GetMetrics(c)
 	if err != nil {
@@ -608,7 +542,7 @@ func TestSessionHandler_GetMetrics_CustomHours(t *testing.T) {
 }
 
 func TestSessionHandler_GetMetrics_InvalidHours(t *testing.T) {
-	h, sm, _, userStore, agentStore, mr := newTestSessionHandlerWithDB(t)
+	h, _, userStore, agentStore, mr := newTestSessionHandlerWithDB(t)
 	defer mr.Close()
 
 	userID := "user_dev123"
@@ -626,17 +560,14 @@ func TestSessionHandler_GetMetrics_InvalidHours(t *testing.T) {
 		Name:        "My Agent",
 	})
 
-	sessionCookie, csrfCookie, csrfToken := createSessionCookies(t, sm, userID)
-
 	e := echo.New()
 	req := httptest.NewRequest(http.MethodGet, "/metrics/agents/"+agentID+"?hours=invalid", nil)
-	req.AddCookie(sessionCookie)
-	req.AddCookie(csrfCookie)
-	req.Header.Set("X-CSRF-Token", csrfToken)
 	rec := httptest.NewRecorder()
 	c := e.NewContext(req, rec)
 	c.SetParamNames("id")
 	c.SetParamValues(agentID)
+
+	setSessionAuthClaims(c, userID)
 
 	err := h.GetMetrics(c)
 	if err != nil {
@@ -652,7 +583,7 @@ func TestSessionHandler_GetMetrics_InvalidHours(t *testing.T) {
 }
 
 func TestSessionHandler_GetMetrics_HoursExceedsMax(t *testing.T) {
-	h, sm, _, userStore, agentStore, mr := newTestSessionHandlerWithDB(t)
+	h, _, userStore, agentStore, mr := newTestSessionHandlerWithDB(t)
 	defer mr.Close()
 
 	userID := "user_dev123"
@@ -670,17 +601,14 @@ func TestSessionHandler_GetMetrics_HoursExceedsMax(t *testing.T) {
 		Name:        "My Agent",
 	})
 
-	sessionCookie, csrfCookie, csrfToken := createSessionCookies(t, sm, userID)
-
 	e := echo.New()
 	req := httptest.NewRequest(http.MethodGet, "/metrics/agents/"+agentID+"?hours=500", nil)
-	req.AddCookie(sessionCookie)
-	req.AddCookie(csrfCookie)
-	req.Header.Set("X-CSRF-Token", csrfToken)
 	rec := httptest.NewRecorder()
 	c := e.NewContext(req, rec)
 	c.SetParamNames("id")
 	c.SetParamValues(agentID)
+
+	setSessionAuthClaims(c, userID)
 
 	err := h.GetMetrics(c)
 	if err != nil {
@@ -696,7 +624,7 @@ func TestSessionHandler_GetMetrics_HoursExceedsMax(t *testing.T) {
 }
 
 func TestSessionHandler_GetSummary_Success(t *testing.T) {
-	h, sm, sessionStore, userStore, agentStore, mr := newTestSessionHandlerWithDB(t)
+	h, sessionStore, userStore, agentStore, mr := newTestSessionHandlerWithDB(t)
 	defer mr.Close()
 
 	userID := "user_dev123"
@@ -720,17 +648,14 @@ func TestSessionHandler_GetSummary_Success(t *testing.T) {
 	sessionStore.IncrementResponses(ctx, agentID)
 	sessionStore.RecordLatency(ctx, agentID, 100)
 
-	sessionCookie, csrfCookie, csrfToken := createSessionCookies(t, sm, userID)
-
 	e := echo.New()
 	req := httptest.NewRequest(http.MethodGet, "/metrics/agents/"+agentID+"/summary", nil)
-	req.AddCookie(sessionCookie)
-	req.AddCookie(csrfCookie)
-	req.Header.Set("X-CSRF-Token", csrfToken)
 	rec := httptest.NewRecorder()
 	c := e.NewContext(req, rec)
 	c.SetParamNames("id")
 	c.SetParamValues(agentID)
+
+	setSessionAuthClaims(c, userID)
 
 	err := h.GetSummary(c)
 	if err != nil {
@@ -758,7 +683,7 @@ func TestSessionHandler_GetSummary_Success(t *testing.T) {
 }
 
 func TestSessionHandler_GetSummary_EmptyMetrics(t *testing.T) {
-	h, sm, _, userStore, agentStore, mr := newTestSessionHandlerWithDB(t)
+	h, _, userStore, agentStore, mr := newTestSessionHandlerWithDB(t)
 	defer mr.Close()
 
 	userID := "user_dev123"
@@ -776,17 +701,14 @@ func TestSessionHandler_GetSummary_EmptyMetrics(t *testing.T) {
 		Name:        "My Agent",
 	})
 
-	sessionCookie, csrfCookie, csrfToken := createSessionCookies(t, sm, userID)
-
 	e := echo.New()
 	req := httptest.NewRequest(http.MethodGet, "/metrics/agents/"+agentID+"/summary", nil)
-	req.AddCookie(sessionCookie)
-	req.AddCookie(csrfCookie)
-	req.Header.Set("X-CSRF-Token", csrfToken)
 	rec := httptest.NewRecorder()
 	c := e.NewContext(req, rec)
 	c.SetParamNames("id")
 	c.SetParamValues(agentID)
+
+	setSessionAuthClaims(c, userID)
 
 	err := h.GetSummary(c)
 	if err != nil {
@@ -805,7 +727,7 @@ func TestSessionHandler_GetSummary_EmptyMetrics(t *testing.T) {
 }
 
 func TestSessionHandler_GetSummary_NotOwner(t *testing.T) {
-	h, sm, _, userStore, agentStore, mr := newTestSessionHandlerWithDB(t)
+	h, _, userStore, agentStore, mr := newTestSessionHandlerWithDB(t)
 	defer mr.Close()
 
 	userID := "user_dev123"
@@ -828,17 +750,14 @@ func TestSessionHandler_GetSummary_NotOwner(t *testing.T) {
 		Name:        "Other Agent",
 	})
 
-	sessionCookie, csrfCookie, csrfToken := createSessionCookies(t, sm, userID)
-
 	e := echo.New()
 	req := httptest.NewRequest(http.MethodGet, "/metrics/agents/agent_123/summary", nil)
-	req.AddCookie(sessionCookie)
-	req.AddCookie(csrfCookie)
-	req.Header.Set("X-CSRF-Token", csrfToken)
 	rec := httptest.NewRecorder()
 	c := e.NewContext(req, rec)
 	c.SetParamNames("id")
 	c.SetParamValues("agent_123")
+
+	setSessionAuthClaims(c, userID)
 
 	err := h.GetSummary(c)
 	if err == nil {

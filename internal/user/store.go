@@ -89,3 +89,43 @@ func (s *Store) SetDeveloper(ctx context.Context, id string, isDeveloper bool) e
 	}
 	return nil
 }
+
+func (s *Store) FindOrCreateFromJWT(ctx context.Context, userID, email, name, avatar string) (*User, error) {
+	var u User
+	err := s.db.WithContext(ctx).Where("id = ?", userID).First(&u).Error
+	if err == nil {
+		if u.Email != email || u.Name != name || u.AvatarURL != avatar {
+			u.Email = email
+			u.Name = name
+			u.AvatarURL = avatar
+			if err := s.db.WithContext(ctx).Save(&u).Error; err != nil {
+				return nil, err
+			}
+		}
+		return &u, nil
+	}
+
+	if !errors.Is(err, gorm.ErrRecordNotFound) {
+		return nil, err
+	}
+
+	u = User{
+		ID:          userID,
+		Provider:    "better-auth",
+		ProviderSub: userID,
+		Email:       email,
+		Name:        name,
+		AvatarURL:   avatar,
+	}
+
+	if err := s.db.WithContext(ctx).Create(&u).Error; err != nil {
+		return nil, err
+	}
+
+	return &u, nil
+}
+
+func (s *Store) SyncFromJWT(ctx context.Context, userID, email, name, avatar string) error {
+	_, err := s.FindOrCreateFromJWT(ctx, userID, email, name, avatar)
+	return err
+}

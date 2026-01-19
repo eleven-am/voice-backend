@@ -11,6 +11,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/eleven-am/voice-backend/internal/auth"
 	"github.com/eleven-am/voice-backend/internal/dto"
 	"github.com/eleven-am/voice-backend/internal/shared"
 	"github.com/eleven-am/voice-backend/internal/user"
@@ -20,28 +21,32 @@ import (
 	gormlogger "gorm.io/gorm/logger"
 )
 
-func newTestAgentHandler() (*Handler, *user.SessionManager) {
-	sm := user.NewSessionManager([]byte("test-key"), false, "")
+func newTestAgentHandler() *Handler {
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
-	h := NewHandler(nil, nil, sm, nil, logger)
-	return h, sm
+	h := NewHandler(nil, nil, nil, logger)
+	return h
+}
+
+func setAuthClaims(c echo.Context, userID, email, name string) {
+	claims := &auth.Claims{
+		UserID: userID,
+		Email:  email,
+		Name:   name,
+	}
+	auth.SetClaimsForTest(c, claims)
 }
 
 func TestNewHandler(t *testing.T) {
-	sm := user.NewSessionManager([]byte("key"), false, "")
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
-	h := NewHandler(nil, nil, sm, nil, logger)
+	h := NewHandler(nil, nil, nil, logger)
 
 	if h == nil {
 		t.Fatal("handler should not be nil")
 	}
-	if h.sessions != sm {
-		t.Error("session manager should be set")
-	}
 }
 
 func TestHandler_RegisterRoutes(t *testing.T) {
-	h, _ := newTestAgentHandler()
+	h := newTestAgentHandler()
 	e := echo.New()
 	g := e.Group("/agents")
 
@@ -68,7 +73,7 @@ func TestHandler_RegisterRoutes(t *testing.T) {
 }
 
 func TestHandler_List_Unauthorized(t *testing.T) {
-	h, _ := newTestAgentHandler()
+	h := newTestAgentHandler()
 	e := echo.New()
 
 	req := httptest.NewRequest(http.MethodGet, "/agents", nil)
@@ -86,7 +91,7 @@ func TestHandler_List_Unauthorized(t *testing.T) {
 }
 
 func TestHandler_Create_Unauthorized(t *testing.T) {
-	h, _ := newTestAgentHandler()
+	h := newTestAgentHandler()
 	e := echo.New()
 
 	req := httptest.NewRequest(http.MethodPost, "/agents", nil)
@@ -105,7 +110,7 @@ func TestHandler_Create_Unauthorized(t *testing.T) {
 }
 
 func TestHandler_Get_Unauthorized(t *testing.T) {
-	h, _ := newTestAgentHandler()
+	h := newTestAgentHandler()
 	e := echo.New()
 
 	req := httptest.NewRequest(http.MethodGet, "/agents/agent_123", nil)
@@ -121,7 +126,7 @@ func TestHandler_Get_Unauthorized(t *testing.T) {
 }
 
 func TestHandler_Update_Unauthorized(t *testing.T) {
-	h, _ := newTestAgentHandler()
+	h := newTestAgentHandler()
 	e := echo.New()
 
 	req := httptest.NewRequest(http.MethodPut, "/agents/agent_123", nil)
@@ -137,7 +142,7 @@ func TestHandler_Update_Unauthorized(t *testing.T) {
 }
 
 func TestHandler_Delete_Unauthorized(t *testing.T) {
-	h, _ := newTestAgentHandler()
+	h := newTestAgentHandler()
 	e := echo.New()
 
 	req := httptest.NewRequest(http.MethodDelete, "/agents/agent_123", nil)
@@ -153,7 +158,7 @@ func TestHandler_Delete_Unauthorized(t *testing.T) {
 }
 
 func TestHandler_Publish_Unauthorized(t *testing.T) {
-	h, _ := newTestAgentHandler()
+	h := newTestAgentHandler()
 	e := echo.New()
 
 	req := httptest.NewRequest(http.MethodPost, "/agents/agent_123/publish", nil)
@@ -169,7 +174,7 @@ func TestHandler_Publish_Unauthorized(t *testing.T) {
 }
 
 func TestHandler_ReplyToReview_Unauthorized(t *testing.T) {
-	h, _ := newTestAgentHandler()
+	h := newTestAgentHandler()
 	e := echo.New()
 
 	req := httptest.NewRequest(http.MethodPost, "/agents/agent_123/reviews/review_456/reply", nil)
@@ -320,7 +325,7 @@ func TestAgentResponse_JSON(t *testing.T) {
 	}
 }
 
-func newTestHandlerWithDB(t *testing.T) (*Handler, *user.SessionManager, *Store, *user.Store) {
+func newTestHandlerWithDB(t *testing.T) (*Handler, *Store, *user.Store) {
 	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{
 		Logger: gormlogger.Default.LogMode(gormlogger.Silent),
 	})
@@ -334,39 +339,19 @@ func newTestHandlerWithDB(t *testing.T) (*Handler, *user.SessionManager, *Store,
 	store := NewStore(db, nil)
 	store.Migrate()
 
-	sm := user.NewSessionManager([]byte("test-secret-key-32-bytes-long!!"), false, "")
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
-	h := NewHandler(store, userStore, sm, nil, logger)
-	return h, sm, store, userStore
-}
-
-func createAgentSessionCookies(_ *testing.T, sm *user.SessionManager, userID string) (sessionCookie, csrfCookie *http.Cookie, csrfToken string) {
-	e := echo.New()
-	rec := httptest.NewRecorder()
-	c := e.NewContext(httptest.NewRequest(http.MethodGet, "/", nil), rec)
-	sm.Create(c, userID)
-
-	cookies := rec.Result().Cookies()
-	for _, cookie := range cookies {
-		if cookie.Name == "voice_session" {
-			sessionCookie = cookie
-		}
-		if cookie.Name == "voice_csrf" {
-			csrfCookie = cookie
-			csrfToken = cookie.Value
-		}
-	}
-	return
+	h := NewHandler(store, userStore, nil, logger)
+	return h, store, userStore
 }
 
 func TestHandler_List_Success(t *testing.T) {
-	h, sm, store, userStore := newTestHandlerWithDB(t)
+	h, store, userStore := newTestHandlerWithDB(t)
 	ctx := context.Background()
 
 	userStore.Create(ctx, &user.User{
 		ID:          "user_list",
-		Provider:    "google",
-		ProviderSub: "sub_list",
+		Provider:    "better-auth",
+		ProviderSub: "user_list",
 		IsDeveloper: true,
 	})
 
@@ -384,13 +369,9 @@ func TestHandler_List_Success(t *testing.T) {
 	e := echo.New()
 	req := httptest.NewRequest(http.MethodGet, "/agents", nil)
 	rec := httptest.NewRecorder()
-
-	sessionCookie, csrfCookie, csrfToken := createAgentSessionCookies(t, sm, "user_list")
-	req.AddCookie(sessionCookie)
-	req.AddCookie(csrfCookie)
-	req.Header.Set("X-CSRF-Token", csrfToken)
-
 	c := e.NewContext(req, rec)
+
+	setAuthClaims(c, "user_list", "test@example.com", "Test User")
 
 	err := h.List(c)
 	if err != nil {
@@ -402,26 +383,22 @@ func TestHandler_List_Success(t *testing.T) {
 }
 
 func TestHandler_List_NotDeveloper(t *testing.T) {
-	h, sm, _, userStore := newTestHandlerWithDB(t)
+	h, _, userStore := newTestHandlerWithDB(t)
 	ctx := context.Background()
 
 	userStore.Create(ctx, &user.User{
 		ID:          "user_not_dev",
-		Provider:    "google",
-		ProviderSub: "sub_not_dev",
+		Provider:    "better-auth",
+		ProviderSub: "user_not_dev",
 		IsDeveloper: false,
 	})
 
 	e := echo.New()
 	req := httptest.NewRequest(http.MethodGet, "/agents", nil)
 	rec := httptest.NewRecorder()
-
-	sessionCookie, csrfCookie, csrfToken := createAgentSessionCookies(t, sm, "user_not_dev")
-	req.AddCookie(sessionCookie)
-	req.AddCookie(csrfCookie)
-	req.Header.Set("X-CSRF-Token", csrfToken)
-
 	c := e.NewContext(req, rec)
+
+	setAuthClaims(c, "user_not_dev", "test@example.com", "Test User")
 
 	err := h.List(c)
 	if err == nil {
@@ -434,13 +411,13 @@ func TestHandler_List_NotDeveloper(t *testing.T) {
 }
 
 func TestHandler_Create_Success(t *testing.T) {
-	h, sm, _, userStore := newTestHandlerWithDB(t)
+	h, _, userStore := newTestHandlerWithDB(t)
 	ctx := context.Background()
 
 	userStore.Create(ctx, &user.User{
 		ID:          "user_create",
-		Provider:    "google",
-		ProviderSub: "sub_create",
+		Provider:    "better-auth",
+		ProviderSub: "user_create",
 		IsDeveloper: true,
 	})
 
@@ -449,13 +426,9 @@ func TestHandler_Create_Success(t *testing.T) {
 	req := httptest.NewRequest(http.MethodPost, "/agents", strings.NewReader(body))
 	req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
 	rec := httptest.NewRecorder()
-
-	sessionCookie, csrfCookie, csrfToken := createAgentSessionCookies(t, sm, "user_create")
-	req.AddCookie(sessionCookie)
-	req.AddCookie(csrfCookie)
-	req.Header.Set("X-CSRF-Token", csrfToken)
-
 	c := e.NewContext(req, rec)
+
+	setAuthClaims(c, "user_create", "test@example.com", "Test User")
 
 	err := h.Create(c)
 	if err != nil {
@@ -467,13 +440,13 @@ func TestHandler_Create_Success(t *testing.T) {
 }
 
 func TestHandler_Create_InvalidJSON(t *testing.T) {
-	h, sm, _, userStore := newTestHandlerWithDB(t)
+	h, _, userStore := newTestHandlerWithDB(t)
 	ctx := context.Background()
 
 	userStore.Create(ctx, &user.User{
 		ID:          "user_create_invalid",
-		Provider:    "google",
-		ProviderSub: "sub_create_invalid",
+		Provider:    "better-auth",
+		ProviderSub: "user_create_invalid",
 		IsDeveloper: true,
 	})
 
@@ -482,13 +455,9 @@ func TestHandler_Create_InvalidJSON(t *testing.T) {
 	req := httptest.NewRequest(http.MethodPost, "/agents", strings.NewReader(body))
 	req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
 	rec := httptest.NewRecorder()
-
-	sessionCookie, csrfCookie, csrfToken := createAgentSessionCookies(t, sm, "user_create_invalid")
-	req.AddCookie(sessionCookie)
-	req.AddCookie(csrfCookie)
-	req.Header.Set("X-CSRF-Token", csrfToken)
-
 	c := e.NewContext(req, rec)
+
+	setAuthClaims(c, "user_create_invalid", "test@example.com", "Test User")
 
 	err := h.Create(c)
 	if err == nil {
@@ -497,13 +466,13 @@ func TestHandler_Create_InvalidJSON(t *testing.T) {
 }
 
 func TestHandler_Get_Success(t *testing.T) {
-	h, sm, store, userStore := newTestHandlerWithDB(t)
+	h, store, userStore := newTestHandlerWithDB(t)
 	ctx := context.Background()
 
 	userStore.Create(ctx, &user.User{
 		ID:          "user_get",
-		Provider:    "google",
-		ProviderSub: "sub_get",
+		Provider:    "better-auth",
+		ProviderSub: "user_get",
 		IsDeveloper: true,
 	})
 
@@ -516,15 +485,11 @@ func TestHandler_Get_Success(t *testing.T) {
 	e := echo.New()
 	req := httptest.NewRequest(http.MethodGet, "/agents/agent_get", nil)
 	rec := httptest.NewRecorder()
-
-	sessionCookie, csrfCookie, csrfToken := createAgentSessionCookies(t, sm, "user_get")
-	req.AddCookie(sessionCookie)
-	req.AddCookie(csrfCookie)
-	req.Header.Set("X-CSRF-Token", csrfToken)
-
 	c := e.NewContext(req, rec)
 	c.SetParamNames("id")
 	c.SetParamValues("agent_get")
+
+	setAuthClaims(c, "user_get", "test@example.com", "Test User")
 
 	err := h.Get(c)
 	if err != nil {
@@ -536,28 +501,24 @@ func TestHandler_Get_Success(t *testing.T) {
 }
 
 func TestHandler_Get_NotFound(t *testing.T) {
-	h, sm, _, userStore := newTestHandlerWithDB(t)
+	h, _, userStore := newTestHandlerWithDB(t)
 	ctx := context.Background()
 
 	userStore.Create(ctx, &user.User{
 		ID:          "user_get_nf",
-		Provider:    "google",
-		ProviderSub: "sub_get_nf",
+		Provider:    "better-auth",
+		ProviderSub: "user_get_nf",
 		IsDeveloper: true,
 	})
 
 	e := echo.New()
 	req := httptest.NewRequest(http.MethodGet, "/agents/nonexistent", nil)
 	rec := httptest.NewRecorder()
-
-	sessionCookie, csrfCookie, csrfToken := createAgentSessionCookies(t, sm, "user_get_nf")
-	req.AddCookie(sessionCookie)
-	req.AddCookie(csrfCookie)
-	req.Header.Set("X-CSRF-Token", csrfToken)
-
 	c := e.NewContext(req, rec)
 	c.SetParamNames("id")
 	c.SetParamValues("nonexistent")
+
+	setAuthClaims(c, "user_get_nf", "test@example.com", "Test User")
 
 	err := h.Get(c)
 	if err == nil {
@@ -570,19 +531,19 @@ func TestHandler_Get_NotFound(t *testing.T) {
 }
 
 func TestHandler_Get_NotOwner(t *testing.T) {
-	h, sm, store, userStore := newTestHandlerWithDB(t)
+	h, store, userStore := newTestHandlerWithDB(t)
 	ctx := context.Background()
 
 	userStore.Create(ctx, &user.User{
 		ID:          "user_owner",
-		Provider:    "google",
-		ProviderSub: "sub_owner",
+		Provider:    "better-auth",
+		ProviderSub: "user_owner",
 		IsDeveloper: true,
 	})
 	userStore.Create(ctx, &user.User{
 		ID:          "user_other",
-		Provider:    "google",
-		ProviderSub: "sub_other",
+		Provider:    "better-auth",
+		ProviderSub: "user_other",
 		IsDeveloper: true,
 	})
 
@@ -595,15 +556,11 @@ func TestHandler_Get_NotOwner(t *testing.T) {
 	e := echo.New()
 	req := httptest.NewRequest(http.MethodGet, "/agents/agent_owned", nil)
 	rec := httptest.NewRecorder()
-
-	sessionCookie, csrfCookie, csrfToken := createAgentSessionCookies(t, sm, "user_other")
-	req.AddCookie(sessionCookie)
-	req.AddCookie(csrfCookie)
-	req.Header.Set("X-CSRF-Token", csrfToken)
-
 	c := e.NewContext(req, rec)
 	c.SetParamNames("id")
 	c.SetParamValues("agent_owned")
+
+	setAuthClaims(c, "user_other", "test@example.com", "Test User")
 
 	err := h.Get(c)
 	if err == nil {
@@ -616,13 +573,13 @@ func TestHandler_Get_NotOwner(t *testing.T) {
 }
 
 func TestHandler_Delete_Success(t *testing.T) {
-	h, sm, store, userStore := newTestHandlerWithDB(t)
+	h, store, userStore := newTestHandlerWithDB(t)
 	ctx := context.Background()
 
 	userStore.Create(ctx, &user.User{
 		ID:          "user_delete",
-		Provider:    "google",
-		ProviderSub: "sub_delete",
+		Provider:    "better-auth",
+		ProviderSub: "user_delete",
 		IsDeveloper: true,
 	})
 
@@ -635,15 +592,11 @@ func TestHandler_Delete_Success(t *testing.T) {
 	e := echo.New()
 	req := httptest.NewRequest(http.MethodDelete, "/agents/agent_delete", nil)
 	rec := httptest.NewRecorder()
-
-	sessionCookie, csrfCookie, csrfToken := createAgentSessionCookies(t, sm, "user_delete")
-	req.AddCookie(sessionCookie)
-	req.AddCookie(csrfCookie)
-	req.Header.Set("X-CSRF-Token", csrfToken)
-
 	c := e.NewContext(req, rec)
 	c.SetParamNames("id")
 	c.SetParamValues("agent_delete")
+
+	setAuthClaims(c, "user_delete", "test@example.com", "Test User")
 
 	err := h.Delete(c)
 	if err != nil {
@@ -655,13 +608,13 @@ func TestHandler_Delete_Success(t *testing.T) {
 }
 
 func TestHandler_Publish_Success(t *testing.T) {
-	h, sm, store, userStore := newTestHandlerWithDB(t)
+	h, store, userStore := newTestHandlerWithDB(t)
 	ctx := context.Background()
 
 	userStore.Create(ctx, &user.User{
 		ID:          "user_publish",
-		Provider:    "google",
-		ProviderSub: "sub_publish",
+		Provider:    "better-auth",
+		ProviderSub: "user_publish",
 		IsDeveloper: true,
 	})
 
@@ -675,15 +628,11 @@ func TestHandler_Publish_Success(t *testing.T) {
 	e := echo.New()
 	req := httptest.NewRequest(http.MethodPost, "/agents/agent_publish/publish", nil)
 	rec := httptest.NewRecorder()
-
-	sessionCookie, csrfCookie, csrfToken := createAgentSessionCookies(t, sm, "user_publish")
-	req.AddCookie(sessionCookie)
-	req.AddCookie(csrfCookie)
-	req.Header.Set("X-CSRF-Token", csrfToken)
-
 	c := e.NewContext(req, rec)
 	c.SetParamNames("id")
 	c.SetParamValues("agent_publish")
+
+	setAuthClaims(c, "user_publish", "test@example.com", "Test User")
 
 	err := h.Publish(c)
 	if err != nil {
@@ -695,13 +644,13 @@ func TestHandler_Publish_Success(t *testing.T) {
 }
 
 func TestHandler_Update_Success(t *testing.T) {
-	h, sm, store, userStore := newTestHandlerWithDB(t)
+	h, store, userStore := newTestHandlerWithDB(t)
 	ctx := context.Background()
 
 	userStore.Create(ctx, &user.User{
 		ID:          "user_update",
-		Provider:    "google",
-		ProviderSub: "sub_update",
+		Provider:    "better-auth",
+		ProviderSub: "user_update",
 		IsDeveloper: true,
 	})
 
@@ -716,15 +665,11 @@ func TestHandler_Update_Success(t *testing.T) {
 	req := httptest.NewRequest(http.MethodPut, "/agents/agent_update", strings.NewReader(body))
 	req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
 	rec := httptest.NewRecorder()
-
-	sessionCookie, csrfCookie, csrfToken := createAgentSessionCookies(t, sm, "user_update")
-	req.AddCookie(sessionCookie)
-	req.AddCookie(csrfCookie)
-	req.Header.Set("X-CSRF-Token", csrfToken)
-
 	c := e.NewContext(req, rec)
 	c.SetParamNames("id")
 	c.SetParamValues("agent_update")
+
+	setAuthClaims(c, "user_update", "test@example.com", "Test User")
 
 	err := h.Update(c)
 	if err != nil {
@@ -740,13 +685,13 @@ func TestHandler_ReplyToReview_Success(t *testing.T) {
 }
 
 func TestHandler_ReplyToReview_InvalidJSON(t *testing.T) {
-	h, sm, store, userStore := newTestHandlerWithDB(t)
+	h, store, userStore := newTestHandlerWithDB(t)
 	ctx := context.Background()
 
 	userStore.Create(ctx, &user.User{
 		ID:          "user_reply_invalid",
-		Provider:    "google",
-		ProviderSub: "sub_reply_invalid",
+		Provider:    "better-auth",
+		ProviderSub: "user_reply_invalid",
 		IsDeveloper: true,
 	})
 
@@ -761,15 +706,11 @@ func TestHandler_ReplyToReview_InvalidJSON(t *testing.T) {
 	req := httptest.NewRequest(http.MethodPost, "/agents/agent_reply_invalid/reviews/review_id/reply", strings.NewReader(body))
 	req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
 	rec := httptest.NewRecorder()
-
-	sessionCookie, csrfCookie, csrfToken := createAgentSessionCookies(t, sm, "user_reply_invalid")
-	req.AddCookie(sessionCookie)
-	req.AddCookie(csrfCookie)
-	req.Header.Set("X-CSRF-Token", csrfToken)
-
 	c := e.NewContext(req, rec)
 	c.SetParamNames("id", "review_id")
 	c.SetParamValues("agent_reply_invalid", "review_id")
+
+	setAuthClaims(c, "user_reply_invalid", "test@example.com", "Test User")
 
 	err := h.ReplyToReview(c)
 	if err == nil {
@@ -778,13 +719,13 @@ func TestHandler_ReplyToReview_InvalidJSON(t *testing.T) {
 }
 
 func TestHandler_ReplyToReview_AgentNotFound(t *testing.T) {
-	h, sm, _, userStore := newTestHandlerWithDB(t)
+	h, _, userStore := newTestHandlerWithDB(t)
 	ctx := context.Background()
 
 	userStore.Create(ctx, &user.User{
 		ID:          "user_reply_nf",
-		Provider:    "google",
-		ProviderSub: "sub_reply_nf",
+		Provider:    "better-auth",
+		ProviderSub: "user_reply_nf",
 		IsDeveloper: true,
 	})
 
@@ -793,15 +734,11 @@ func TestHandler_ReplyToReview_AgentNotFound(t *testing.T) {
 	req := httptest.NewRequest(http.MethodPost, "/agents/nonexistent/reviews/review_id/reply", strings.NewReader(body))
 	req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
 	rec := httptest.NewRecorder()
-
-	sessionCookie, csrfCookie, csrfToken := createAgentSessionCookies(t, sm, "user_reply_nf")
-	req.AddCookie(sessionCookie)
-	req.AddCookie(csrfCookie)
-	req.Header.Set("X-CSRF-Token", csrfToken)
-
 	c := e.NewContext(req, rec)
 	c.SetParamNames("id", "review_id")
 	c.SetParamValues("nonexistent", "review_id")
+
+	setAuthClaims(c, "user_reply_nf", "test@example.com", "Test User")
 
 	err := h.ReplyToReview(c)
 	if err == nil {
@@ -814,28 +751,24 @@ func TestHandler_ReplyToReview_AgentNotFound(t *testing.T) {
 }
 
 func TestHandler_Delete_NotFound(t *testing.T) {
-	h, sm, _, userStore := newTestHandlerWithDB(t)
+	h, _, userStore := newTestHandlerWithDB(t)
 	ctx := context.Background()
 
 	userStore.Create(ctx, &user.User{
 		ID:          "user_delete_nf",
-		Provider:    "google",
-		ProviderSub: "sub_delete_nf",
+		Provider:    "better-auth",
+		ProviderSub: "user_delete_nf",
 		IsDeveloper: true,
 	})
 
 	e := echo.New()
 	req := httptest.NewRequest(http.MethodDelete, "/agents/nonexistent", nil)
 	rec := httptest.NewRecorder()
-
-	sessionCookie, csrfCookie, csrfToken := createAgentSessionCookies(t, sm, "user_delete_nf")
-	req.AddCookie(sessionCookie)
-	req.AddCookie(csrfCookie)
-	req.Header.Set("X-CSRF-Token", csrfToken)
-
 	c := e.NewContext(req, rec)
 	c.SetParamNames("id")
 	c.SetParamValues("nonexistent")
+
+	setAuthClaims(c, "user_delete_nf", "test@example.com", "Test User")
 
 	err := h.Delete(c)
 	if err == nil {
@@ -848,13 +781,13 @@ func TestHandler_Delete_NotFound(t *testing.T) {
 }
 
 func TestHandler_Update_InvalidJSON(t *testing.T) {
-	h, sm, store, userStore := newTestHandlerWithDB(t)
+	h, store, userStore := newTestHandlerWithDB(t)
 	ctx := context.Background()
 
 	userStore.Create(ctx, &user.User{
 		ID:          "user_update_inv",
-		Provider:    "google",
-		ProviderSub: "sub_update_inv",
+		Provider:    "better-auth",
+		ProviderSub: "user_update_inv",
 		IsDeveloper: true,
 	})
 
@@ -869,15 +802,11 @@ func TestHandler_Update_InvalidJSON(t *testing.T) {
 	req := httptest.NewRequest(http.MethodPut, "/agents/agent_update_inv", strings.NewReader(body))
 	req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
 	rec := httptest.NewRecorder()
-
-	sessionCookie, csrfCookie, csrfToken := createAgentSessionCookies(t, sm, "user_update_inv")
-	req.AddCookie(sessionCookie)
-	req.AddCookie(csrfCookie)
-	req.Header.Set("X-CSRF-Token", csrfToken)
-
 	c := e.NewContext(req, rec)
 	c.SetParamNames("id")
 	c.SetParamValues("agent_update_inv")
+
+	setAuthClaims(c, "user_update_inv", "test@example.com", "Test User")
 
 	err := h.Update(c)
 	if err == nil {
@@ -886,13 +815,13 @@ func TestHandler_Update_InvalidJSON(t *testing.T) {
 }
 
 func TestHandler_Update_NotFound(t *testing.T) {
-	h, sm, _, userStore := newTestHandlerWithDB(t)
+	h, _, userStore := newTestHandlerWithDB(t)
 	ctx := context.Background()
 
 	userStore.Create(ctx, &user.User{
 		ID:          "user_update_nf",
-		Provider:    "google",
-		ProviderSub: "sub_update_nf",
+		Provider:    "better-auth",
+		ProviderSub: "user_update_nf",
 		IsDeveloper: true,
 	})
 
@@ -901,15 +830,11 @@ func TestHandler_Update_NotFound(t *testing.T) {
 	req := httptest.NewRequest(http.MethodPut, "/agents/nonexistent", strings.NewReader(body))
 	req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
 	rec := httptest.NewRecorder()
-
-	sessionCookie, csrfCookie, csrfToken := createAgentSessionCookies(t, sm, "user_update_nf")
-	req.AddCookie(sessionCookie)
-	req.AddCookie(csrfCookie)
-	req.Header.Set("X-CSRF-Token", csrfToken)
-
 	c := e.NewContext(req, rec)
 	c.SetParamNames("id")
 	c.SetParamValues("nonexistent")
+
+	setAuthClaims(c, "user_update_nf", "test@example.com", "Test User")
 
 	err := h.Update(c)
 	if err == nil {
@@ -922,28 +847,24 @@ func TestHandler_Update_NotFound(t *testing.T) {
 }
 
 func TestHandler_Publish_NotFound(t *testing.T) {
-	h, sm, _, userStore := newTestHandlerWithDB(t)
+	h, _, userStore := newTestHandlerWithDB(t)
 	ctx := context.Background()
 
 	userStore.Create(ctx, &user.User{
 		ID:          "user_pub_nf",
-		Provider:    "google",
-		ProviderSub: "sub_pub_nf",
+		Provider:    "better-auth",
+		ProviderSub: "user_pub_nf",
 		IsDeveloper: true,
 	})
 
 	e := echo.New()
 	req := httptest.NewRequest(http.MethodPost, "/agents/nonexistent/publish", nil)
 	rec := httptest.NewRecorder()
-
-	sessionCookie, csrfCookie, csrfToken := createAgentSessionCookies(t, sm, "user_pub_nf")
-	req.AddCookie(sessionCookie)
-	req.AddCookie(csrfCookie)
-	req.Header.Set("X-CSRF-Token", csrfToken)
-
 	c := e.NewContext(req, rec)
 	c.SetParamNames("id")
 	c.SetParamValues("nonexistent")
+
+	setAuthClaims(c, "user_pub_nf", "test@example.com", "Test User")
 
 	err := h.Publish(c)
 	if err == nil {
