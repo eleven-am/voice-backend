@@ -30,7 +30,7 @@ func (a *Authenticator) ValidateAPIKey(ctx context.Context, secret string) (*api
 }
 
 func (a *Authenticator) ValidateAgentAccess(key *apikey.APIKey, agentID string) error {
-	if key.OwnerType == "agent" && key.OwnerID == agentID {
+	if key.OwnerType == apikey.OwnerTypeAgent && key.OwnerID == agentID {
 		return nil
 	}
 

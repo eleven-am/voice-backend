@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"strings"
 
+	"github.com/eleven-am/voice-backend/internal/apikey"
 	"github.com/gorilla/websocket"
 	"github.com/labstack/echo/v4"
 )
@@ -61,7 +62,7 @@ func (h *AgentHandler) handleWebSocket(c echo.Context) error {
 
 	agentID := c.QueryParam("agent_id")
 	if agentID == "" {
-		if key.OwnerType == "agent" {
+		if key.OwnerType == apikey.OwnerTypeAgent {
 			agentID = key.OwnerID
 		} else {
 			return echo.NewHTTPError(http.StatusBadRequest, "missing agent_id")
@@ -113,7 +114,7 @@ func (h *AgentHandler) handleSSE(c echo.Context) error {
 
 	agentID := c.QueryParam("agent_id")
 	if agentID == "" {
-		if key.OwnerType == "agent" {
+		if key.OwnerType == apikey.OwnerTypeAgent {
 			agentID = key.OwnerID
 		} else {
 			return echo.NewHTTPError(http.StatusBadRequest, "missing agent_id")
@@ -172,7 +173,7 @@ func (h *AgentHandler) HandleEvent(c echo.Context) error {
 
 	agentID := c.QueryParam("agent_id")
 	if agentID == "" {
-		if key.OwnerType == "agent" {
+		if key.OwnerType == apikey.OwnerTypeAgent {
 			agentID = key.OwnerID
 		} else {
 			return echo.NewHTTPError(http.StatusBadRequest, "missing agent_id")
