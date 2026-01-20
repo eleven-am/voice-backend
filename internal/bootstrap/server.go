@@ -82,5 +82,6 @@ func Run() {
 		gateway.Module,
 		HandlersModule,
 		VoiceModule,
+		HealthModule,
 	).Run()
 }

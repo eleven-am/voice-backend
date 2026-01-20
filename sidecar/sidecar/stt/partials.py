@@ -35,13 +35,11 @@ class PartialTranscriptService:
         session: SpeechSession,
         config: SessionConfig,
     ) -> Transcript | None:
-        buffer_copy = session.get_buffer_copy()
-        if not buffer_copy:
+        buf_samples = session.get_buffer_length()
+        if buf_samples == 0:
             return None
 
-        buffer_audio = np.concatenate(buffer_copy)
-        buf_ms = samples_to_ms(len(buffer_audio))
-
+        buf_ms = samples_to_ms(buf_samples)
         partial_window_ms = config.partial_window_ms
         partial_stride_ms = config.partial_stride_ms
 
@@ -53,11 +51,11 @@ class PartialTranscriptService:
         tail_window_ms = partial_window_ms + PARTIAL_OVERLAP_MS
         tail_samples = int(tail_window_ms * TARGET_SAMPLE_RATE / 1000)
 
-        if len(buffer_audio) > tail_samples:
-            tail_audio = buffer_audio[-tail_samples:]
+        if buf_samples > tail_samples:
+            tail_audio = session.get_buffer_tail(tail_samples)
             tail_start_ms = buf_ms - tail_window_ms
         else:
-            tail_audio = buffer_audio
+            tail_audio = session.get_buffer_audio()
             tail_start_ms = 0
 
         segment = SpeechSegment(
@@ -88,13 +86,11 @@ class PartialTranscriptService:
         if self._transcribe_async_fn is None:
             raise RuntimeError("Async transcribe function not provided")
 
-        buffer_copy = session.get_buffer_copy()
-        if not buffer_copy:
+        buf_samples = session.get_buffer_length()
+        if buf_samples == 0:
             return None
 
-        buffer_audio = np.concatenate(buffer_copy)
-        buf_ms = samples_to_ms(len(buffer_audio))
-
+        buf_ms = samples_to_ms(buf_samples)
         partial_window_ms = config.partial_window_ms
         partial_stride_ms = config.partial_stride_ms
 
@@ -106,11 +102,11 @@ class PartialTranscriptService:
         tail_window_ms = partial_window_ms + PARTIAL_OVERLAP_MS
         tail_samples = int(tail_window_ms * TARGET_SAMPLE_RATE / 1000)
 
-        if len(buffer_audio) > tail_samples:
-            tail_audio = buffer_audio[-tail_samples:]
+        if buf_samples > tail_samples:
+            tail_audio = session.get_buffer_tail(tail_samples)
             tail_start_ms = buf_ms - tail_window_ms
         else:
-            tail_audio = buffer_audio
+            tail_audio = session.get_buffer_audio()
             tail_start_ms = 0
 
         segment = SpeechSegment(
@@ -134,7 +130,6 @@ class PartialTranscriptService:
         return None
 
     def flush_remaining_audio(self, session: SpeechSession) -> NDArray[np.float32] | None:
-        buffer_copy = session.get_buffer_copy()
-        if buffer_copy:
-            return np.concatenate(buffer_copy)
+        if session.get_buffer_length() > 0:
+            return session.get_buffer_audio()
         return None

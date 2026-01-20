@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import logging
 from concurrent.futures import ThreadPoolExecutor
 import signal
@@ -7,15 +8,17 @@ import sys
 import resource
 
 import grpc
+from grpc import aio as grpc_aio
 
-from sidecar import stt_pb2_grpc, tts_pb2_grpc
-from sidecar.engine_manager import EngineConfig, STTEngineManager
-from sidecar.infrastructure.grpc.grpc_servicer import TranscriptionServiceServicer
-from sidecar.stt_pipeline import STTPipelineConfig, EOUConfig
-from sidecar.tts_grpc_server import TextToSpeechServiceServicer
-from sidecar.tts_models import KokoroModelManager, SynthesisConfig, TTSConfig
-from sidecar.utils import get_env, start_health_server
-from sidecar.vad_standalone import VADConfig
+from sidecar.stt import pb2_grpc as stt_pb2_grpc
+from sidecar.tts import pb2_grpc as tts_pb2_grpc
+from sidecar.stt.engine_manager import EngineConfig, STTEngineManager
+from sidecar.stt.grpc_servicer import TranscriptionServiceServicer
+from sidecar.stt.pipeline import STTPipelineConfig, EOUConfig
+from sidecar.stt.vad import VADConfig
+from sidecar.tts.grpc_servicer import TextToSpeechServiceServicer
+from sidecar.tts.model_manager import KokoroModelManager, SynthesisConfig, TTSConfig
+from sidecar.shared.utils import get_env, start_health_server, token_auth_interceptor
 
 logging.basicConfig(
     level=logging.INFO,
@@ -88,7 +91,7 @@ def _preload_models() -> None:
         engine_manager.preload()
 
 
-def serve() -> None:
+async def serve() -> None:
     port = get_env("GRPC_PORT", 50051)
     grpc_workers = get_env("GRPC_WORKERS", 10)
     stt_workers = get_env("STT_WORKERS", 4)
@@ -109,18 +112,15 @@ def serve() -> None:
             logger.error("Invalid setting %s=%s (must be > 0)", name, val)
             sys.exit(1)
 
-    grpc_executor = ThreadPoolExecutor(max_workers=grpc_workers, thread_name_prefix="grpc")
     stt_executor = ThreadPoolExecutor(max_workers=stt_workers, thread_name_prefix="stt")
     tts_executor = ThreadPoolExecutor(max_workers=tts_workers, thread_name_prefix="tts")
 
     interceptors = []
     if token:
-        from sidecar.utils import token_auth_interceptor
         interceptors.append(token_auth_interceptor(token))
 
     max_msg_size = get_env("GRPC_MAX_MESSAGE_SIZE", 512) * 1024 * 1024
-    server = grpc.server(
-        grpc_executor,
+    server = grpc_aio.server(
         interceptors=interceptors,
         options=[
             ('grpc.max_send_message_length', max_msg_size),
@@ -168,27 +168,34 @@ def serve() -> None:
 
     health_server = start_health_server(health_port, metrics_fn=metrics_fn)
 
+    shutdown_event = asyncio.Event()
+
     def shutdown(*_args) -> None:
         logger.info("Shutting down gRPC server...")
-        server.stop(grace=5)
-        stt_executor.shutdown(wait=False, cancel_futures=True)
-        tts_executor.shutdown(wait=False, cancel_futures=True)
-        grpc_executor.shutdown(wait=False, cancel_futures=True)
-        try:
-            health_server.shutdown()
-        except Exception:
-            pass
-        sys.exit(0)
+        shutdown_event.set()
 
     signal.signal(signal.SIGINT, shutdown)
     signal.signal(signal.SIGTERM, shutdown)
 
-    server.start()
-    server.wait_for_termination()
+    await server.start()
+
+    tts_model_manager.start_cleanup_task()
+
+    await shutdown_event.wait()
+
+    tts_model_manager.stop_cleanup_task()
+    tts_model_manager.unload_all()
+    await server.stop(grace=5)
+    stt_executor.shutdown(wait=False, cancel_futures=True)
+    tts_executor.shutdown(wait=False, cancel_futures=True)
+    try:
+        health_server.shutdown()
+    except Exception:
+        pass
 
 
 def cli() -> None:
-    serve()
+    asyncio.run(serve())
 
 
 if __name__ == "__main__":

@@ -13,9 +13,9 @@ from huggingface_hub import hf_hub_download
 from numpy.typing import NDArray
 from transformers import AutoTokenizer
 
-from sidecar.engine_manager import EngineConfig, STTEngineManager
-from sidecar.types import SessionConfig, SpeechStarted, SpeechStopped, Transcript
-from sidecar.vad_standalone import SpeechSegment, VADConfig, VADProcessor
+from sidecar.stt.engine_manager import EngineConfig, STTEngineManager
+from sidecar.domain.types import SessionConfig, SpeechStarted, SpeechStopped, Transcript
+from sidecar.stt.vad import SpeechSegment, VADConfig, VADProcessor
 
 logger = logging.getLogger(__name__)
 

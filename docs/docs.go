@@ -14,17 +14,1954 @@ const docTemplate = `{
     },
     "host": "{{.Host}}",
     "basePath": "{{.BasePath}}",
-    "paths": {},
+    "paths": {
+        "/agents": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Returns all agents owned by the authenticated developer",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "agents"
+                ],
+                "summary": "List developer's agents",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_eleven-am_voice-backend_internal_dto.AgentListResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_eleven-am_voice-backend_internal_shared.APIError"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_eleven-am_voice-backend_internal_shared.APIError"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_eleven-am_voice-backend_internal_shared.APIError"
+                        }
+                    }
+                }
+            },
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Creates a new agent for the authenticated developer",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "agents"
+                ],
+                "summary": "Create a new agent",
+                "parameters": [
+                    {
+                        "description": "Agent details",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/github_com_eleven-am_voice-backend_internal_dto.CreateAgentRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_eleven-am_voice-backend_internal_dto.AgentResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_eleven-am_voice-backend_internal_shared.APIError"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_eleven-am_voice-backend_internal_shared.APIError"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_eleven-am_voice-backend_internal_shared.APIError"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_eleven-am_voice-backend_internal_shared.APIError"
+                        }
+                    }
+                }
+            }
+        },
+        "/agents/{id}": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Returns a specific agent owned by the authenticated developer",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "agents"
+                ],
+                "summary": "Get an agent",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Agent ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_eleven-am_voice-backend_internal_dto.AgentResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_eleven-am_voice-backend_internal_shared.APIError"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_eleven-am_voice-backend_internal_shared.APIError"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_eleven-am_voice-backend_internal_shared.APIError"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_eleven-am_voice-backend_internal_shared.APIError"
+                        }
+                    }
+                }
+            },
+            "put": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Updates an existing agent owned by the authenticated developer",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "agents"
+                ],
+                "summary": "Update an agent",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Agent ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Agent update details",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/github_com_eleven-am_voice-backend_internal_dto.UpdateAgentRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_eleven-am_voice-backend_internal_dto.AgentResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_eleven-am_voice-backend_internal_shared.APIError"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_eleven-am_voice-backend_internal_shared.APIError"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_eleven-am_voice-backend_internal_shared.APIError"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_eleven-am_voice-backend_internal_shared.APIError"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_eleven-am_voice-backend_internal_shared.APIError"
+                        }
+                    }
+                }
+            },
+            "delete": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Deletes an agent owned by the authenticated developer",
+                "tags": [
+                    "agents"
+                ],
+                "summary": "Delete an agent",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Agent ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No Content"
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_eleven-am_voice-backend_internal_shared.APIError"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_eleven-am_voice-backend_internal_shared.APIError"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_eleven-am_voice-backend_internal_shared.APIError"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_eleven-am_voice-backend_internal_shared.APIError"
+                        }
+                    }
+                }
+            }
+        },
+        "/agents/{id}/publish": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Makes an agent publicly available in the marketplace",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "agents"
+                ],
+                "summary": "Publish an agent",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Agent ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_eleven-am_voice-backend_internal_dto.AgentResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_eleven-am_voice-backend_internal_shared.APIError"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_eleven-am_voice-backend_internal_shared.APIError"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_eleven-am_voice-backend_internal_shared.APIError"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_eleven-am_voice-backend_internal_shared.APIError"
+                        }
+                    }
+                }
+            }
+        },
+        "/agents/{id}/reviews/{review_id}/reply": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Adds a developer reply to a review on their agent",
+                "consumes": [
+                    "application/json"
+                ],
+                "tags": [
+                    "agents"
+                ],
+                "summary": "Reply to a review",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Agent ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Review ID",
+                        "name": "review_id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Reply content",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/github_com_eleven-am_voice-backend_internal_dto.ReplyToReviewRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No Content"
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_eleven-am_voice-backend_internal_shared.APIError"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_eleven-am_voice-backend_internal_shared.APIError"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_eleven-am_voice-backend_internal_shared.APIError"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_eleven-am_voice-backend_internal_shared.APIError"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_eleven-am_voice-backend_internal_shared.APIError"
+                        }
+                    }
+                }
+            }
+        },
+        "/apikeys": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Returns all API keys owned by the authenticated developer",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "apikeys"
+                ],
+                "summary": "List API keys",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_eleven-am_voice-backend_internal_dto.APIKeyListResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_eleven-am_voice-backend_internal_shared.APIError"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_eleven-am_voice-backend_internal_shared.APIError"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_eleven-am_voice-backend_internal_shared.APIError"
+                        }
+                    }
+                }
+            },
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Creates a new API key for the authenticated developer",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "apikeys"
+                ],
+                "summary": "Create an API key",
+                "parameters": [
+                    {
+                        "description": "API key details",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/github_com_eleven-am_voice-backend_internal_dto.CreateAPIKeyRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_eleven-am_voice-backend_internal_dto.CreateAPIKeyResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_eleven-am_voice-backend_internal_shared.APIError"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_eleven-am_voice-backend_internal_shared.APIError"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_eleven-am_voice-backend_internal_shared.APIError"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_eleven-am_voice-backend_internal_shared.APIError"
+                        }
+                    }
+                }
+            }
+        },
+        "/apikeys/{id}": {
+            "delete": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Deletes an API key owned by the authenticated developer",
+                "tags": [
+                    "apikeys"
+                ],
+                "summary": "Delete an API key",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "API Key ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No Content"
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_eleven-am_voice-backend_internal_shared.APIError"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_eleven-am_voice-backend_internal_shared.APIError"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_eleven-am_voice-backend_internal_shared.APIError"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_eleven-am_voice-backend_internal_shared.APIError"
+                        }
+                    }
+                }
+            }
+        },
+        "/auth/me": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Returns the currently authenticated user's profile",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "auth"
+                ],
+                "summary": "Get current user",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_eleven-am_voice-backend_internal_dto.MeResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_eleven-am_voice-backend_internal_shared.APIError"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_eleven-am_voice-backend_internal_shared.APIError"
+                        }
+                    }
+                }
+            }
+        },
+        "/auth/me/developer": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Upgrades the current user to developer status",
+                "tags": [
+                    "auth"
+                ],
+                "summary": "Become a developer",
+                "responses": {
+                    "204": {
+                        "description": "No Content"
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_eleven-am_voice-backend_internal_shared.APIError"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_eleven-am_voice-backend_internal_shared.APIError"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_eleven-am_voice-backend_internal_shared.APIError"
+                        }
+                    }
+                }
+            }
+        },
+        "/me/agents": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Returns all agents installed by the authenticated user",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "installs"
+                ],
+                "summary": "List installed agents",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_eleven-am_voice-backend_internal_dto.InstalledAgentsResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_eleven-am_voice-backend_internal_shared.APIError"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_eleven-am_voice-backend_internal_shared.APIError"
+                        }
+                    }
+                }
+            }
+        },
+        "/me/agents/{id}": {
+            "delete": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Removes an installed agent from the user's account",
+                "tags": [
+                    "installs"
+                ],
+                "summary": "Uninstall an agent",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Agent ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No Content"
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_eleven-am_voice-backend_internal_shared.APIError"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_eleven-am_voice-backend_internal_shared.APIError"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_eleven-am_voice-backend_internal_shared.APIError"
+                        }
+                    }
+                }
+            }
+        },
+        "/me/agents/{id}/install": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Installs a public agent for the authenticated user",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "installs"
+                ],
+                "summary": "Install an agent",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Agent ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Installation options",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/github_com_eleven-am_voice-backend_internal_dto.InstallRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_eleven-am_voice-backend_internal_dto.InstalledAgentResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_eleven-am_voice-backend_internal_shared.APIError"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_eleven-am_voice-backend_internal_shared.APIError"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_eleven-am_voice-backend_internal_shared.APIError"
+                        }
+                    },
+                    "409": {
+                        "description": "Conflict",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_eleven-am_voice-backend_internal_shared.APIError"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_eleven-am_voice-backend_internal_shared.APIError"
+                        }
+                    }
+                }
+            }
+        },
+        "/me/agents/{id}/scopes": {
+            "put": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Updates the granted scopes for an installed agent",
+                "consumes": [
+                    "application/json"
+                ],
+                "tags": [
+                    "installs"
+                ],
+                "summary": "Update agent scopes",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Agent ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "New scopes",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/github_com_eleven-am_voice-backend_internal_dto.UpdateScopesRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No Content"
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_eleven-am_voice-backend_internal_shared.APIError"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_eleven-am_voice-backend_internal_shared.APIError"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_eleven-am_voice-backend_internal_shared.APIError"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_eleven-am_voice-backend_internal_shared.APIError"
+                        }
+                    }
+                }
+            }
+        },
+        "/metrics/agents/{id}": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Returns hourly metrics for an agent owned by the developer",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "metrics"
+                ],
+                "summary": "Get agent metrics",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Agent ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Number of hours (default 24, max 168)",
+                        "name": "hours",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_eleven-am_voice-backend_internal_dto.MetricsListResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_eleven-am_voice-backend_internal_shared.APIError"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_eleven-am_voice-backend_internal_shared.APIError"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_eleven-am_voice-backend_internal_shared.APIError"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_eleven-am_voice-backend_internal_shared.APIError"
+                        }
+                    }
+                }
+            }
+        },
+        "/metrics/agents/{id}/summary": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Returns aggregated 7-day metrics summary for an agent",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "metrics"
+                ],
+                "summary": "Get agent metrics summary",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Agent ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_eleven-am_voice-backend_internal_dto.SummaryResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_eleven-am_voice-backend_internal_shared.APIError"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_eleven-am_voice-backend_internal_shared.APIError"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_eleven-am_voice-backend_internal_shared.APIError"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_eleven-am_voice-backend_internal_shared.APIError"
+                        }
+                    }
+                }
+            }
+        },
+        "/store/agents": {
+            "get": {
+                "description": "Returns paginated list of public agents in the marketplace",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "marketplace"
+                ],
+                "summary": "List public agents",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "Number of results (default 20, max 100)",
+                        "name": "limit",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Offset for pagination",
+                        "name": "offset",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Filter by category",
+                        "name": "category",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_eleven-am_voice-backend_internal_dto.MarketplaceListResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_eleven-am_voice-backend_internal_shared.APIError"
+                        }
+                    }
+                }
+            }
+        },
+        "/store/agents/search": {
+            "get": {
+                "description": "Searches public agents using semantic search",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "marketplace"
+                ],
+                "summary": "Search agents",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Search query",
+                        "name": "q",
+                        "in": "query",
+                        "required": true
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Number of results (default 10, max 50)",
+                        "name": "limit",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_eleven-am_voice-backend_internal_dto.MarketplaceSearchResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_eleven-am_voice-backend_internal_shared.APIError"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_eleven-am_voice-backend_internal_shared.APIError"
+                        }
+                    }
+                }
+            }
+        },
+        "/store/agents/{id}": {
+            "get": {
+                "description": "Returns details of a public agent by ID",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "marketplace"
+                ],
+                "summary": "Get a public agent",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Agent ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_eleven-am_voice-backend_internal_dto.MarketplaceAgentResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_eleven-am_voice-backend_internal_shared.APIError"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_eleven-am_voice-backend_internal_shared.APIError"
+                        }
+                    }
+                }
+            }
+        },
+        "/store/agents/{id}/reviews": {
+            "get": {
+                "description": "Returns paginated list of reviews for a public agent",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "marketplace"
+                ],
+                "summary": "Get agent reviews",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Agent ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Number of results (default 20, max 100)",
+                        "name": "limit",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Offset for pagination",
+                        "name": "offset",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_eleven-am_voice-backend_internal_dto.ReviewListResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_eleven-am_voice-backend_internal_shared.APIError"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_eleven-am_voice-backend_internal_shared.APIError"
+                        }
+                    }
+                }
+            },
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Creates a review for an installed agent",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "marketplace"
+                ],
+                "summary": "Create a review",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Agent ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Review content",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/github_com_eleven-am_voice-backend_internal_dto.CreateReviewRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_eleven-am_voice-backend_internal_dto.ReviewResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_eleven-am_voice-backend_internal_shared.APIError"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_eleven-am_voice-backend_internal_shared.APIError"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_eleven-am_voice-backend_internal_shared.APIError"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_eleven-am_voice-backend_internal_shared.APIError"
+                        }
+                    },
+                    "409": {
+                        "description": "Conflict",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_eleven-am_voice-backend_internal_shared.APIError"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_eleven-am_voice-backend_internal_shared.APIError"
+                        }
+                    }
+                }
+            }
+        }
+    },
+    "definitions": {
+        "github_com_eleven-am_voice-backend_internal_dto.APIKeyListResponse": {
+            "type": "object",
+            "properties": {
+                "api_keys": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/github_com_eleven-am_voice-backend_internal_dto.APIKeyResponse"
+                    }
+                }
+            }
+        },
+        "github_com_eleven-am_voice-backend_internal_dto.APIKeyResponse": {
+            "type": "object",
+            "properties": {
+                "created_at": {
+                    "type": "string",
+                    "example": "2024-01-15T10:30:00Z"
+                },
+                "expires_at": {
+                    "type": "string",
+                    "example": "2024-12-31T23:59:59Z"
+                },
+                "id": {
+                    "type": "string",
+                    "example": "key_abc123"
+                },
+                "last_used_at": {
+                    "type": "string",
+                    "example": "2024-01-20T15:45:00Z"
+                },
+                "name": {
+                    "type": "string",
+                    "example": "Production Key"
+                },
+                "prefix": {
+                    "type": "string",
+                    "example": "sk-voice-abc"
+                }
+            }
+        },
+        "github_com_eleven-am_voice-backend_internal_dto.AgentListResponse": {
+            "type": "object",
+            "properties": {
+                "agents": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/github_com_eleven-am_voice-backend_internal_dto.AgentResponse"
+                    }
+                }
+            }
+        },
+        "github_com_eleven-am_voice-backend_internal_dto.AgentResponse": {
+            "type": "object",
+            "properties": {
+                "active_installs": {
+                    "type": "integer",
+                    "example": 500
+                },
+                "avg_rating": {
+                    "type": "number",
+                    "example": 4.5
+                },
+                "capabilities": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    },
+                    "example": [
+                        "search",
+                        "weather"
+                    ]
+                },
+                "category": {
+                    "type": "string",
+                    "example": "productivity"
+                },
+                "created_at": {
+                    "type": "string",
+                    "example": "2024-01-15T10:30:00Z"
+                },
+                "description": {
+                    "type": "string",
+                    "example": "A helpful voice assistant"
+                },
+                "developer_id": {
+                    "type": "string",
+                    "example": "usr_xyz789"
+                },
+                "id": {
+                    "type": "string",
+                    "example": "agt_abc123"
+                },
+                "is_public": {
+                    "type": "boolean",
+                    "example": true
+                },
+                "is_verified": {
+                    "type": "boolean",
+                    "example": false
+                },
+                "keywords": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    },
+                    "example": [
+                        "helpful",
+                        "assistant"
+                    ]
+                },
+                "logo_url": {
+                    "type": "string",
+                    "example": "https://example.com/logo.png"
+                },
+                "name": {
+                    "type": "string",
+                    "example": "My Voice Agent"
+                },
+                "total_installs": {
+                    "type": "integer",
+                    "example": 1000
+                },
+                "total_reviews": {
+                    "type": "integer",
+                    "example": 100
+                },
+                "updated_at": {
+                    "type": "string",
+                    "example": "2024-01-20T15:45:00Z"
+                }
+            }
+        },
+        "github_com_eleven-am_voice-backend_internal_dto.CreateAPIKeyRequest": {
+            "type": "object",
+            "properties": {
+                "expires_in_days": {
+                    "type": "integer",
+                    "example": 90
+                },
+                "name": {
+                    "type": "string",
+                    "example": "Production Key"
+                }
+            }
+        },
+        "github_com_eleven-am_voice-backend_internal_dto.CreateAPIKeyResponse": {
+            "type": "object",
+            "properties": {
+                "created_at": {
+                    "type": "string",
+                    "example": "2024-01-15T10:30:00Z"
+                },
+                "expires_at": {
+                    "type": "string",
+                    "example": "2024-12-31T23:59:59Z"
+                },
+                "id": {
+                    "type": "string",
+                    "example": "key_abc123"
+                },
+                "last_used_at": {
+                    "type": "string"
+                },
+                "name": {
+                    "type": "string",
+                    "example": "Production Key"
+                },
+                "prefix": {
+                    "type": "string",
+                    "example": "sk-voice-abc"
+                },
+                "secret": {
+                    "type": "string",
+                    "example": "sk-voice-abcXXXXXXXXXXXXXXXXXXXXX"
+                }
+            }
+        },
+        "github_com_eleven-am_voice-backend_internal_dto.CreateAgentRequest": {
+            "type": "object",
+            "properties": {
+                "capabilities": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    },
+                    "example": [
+                        "search",
+                        "weather",
+                        "calendar"
+                    ]
+                },
+                "category": {
+                    "type": "string",
+                    "enum": [
+                        "productivity",
+                        "education",
+                        "entertainment",
+                        "lifestyle",
+                        "utility",
+                        "social",
+                        "finance",
+                        "health",
+                        "news",
+                        "assistant"
+                    ],
+                    "example": "productivity"
+                },
+                "description": {
+                    "type": "string",
+                    "example": "A helpful voice assistant"
+                },
+                "keywords": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    },
+                    "example": [
+                        "helpful",
+                        "assistant",
+                        "voice"
+                    ]
+                },
+                "logo_url": {
+                    "type": "string",
+                    "example": "https://example.com/logo.png"
+                },
+                "name": {
+                    "type": "string",
+                    "example": "My Voice Agent"
+                }
+            }
+        },
+        "github_com_eleven-am_voice-backend_internal_dto.CreateReviewRequest": {
+            "type": "object",
+            "properties": {
+                "body": {
+                    "type": "string",
+                    "example": "Great agent, very helpful!"
+                },
+                "rating": {
+                    "type": "integer",
+                    "maximum": 5,
+                    "minimum": 1,
+                    "example": 5
+                }
+            }
+        },
+        "github_com_eleven-am_voice-backend_internal_dto.InstallRequest": {
+            "type": "object",
+            "properties": {
+                "scopes": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    },
+                    "example": [
+                        "profile",
+                        "email",
+                        "realtime"
+                    ]
+                }
+            }
+        },
+        "github_com_eleven-am_voice-backend_internal_dto.InstalledAgentResponse": {
+            "type": "object",
+            "properties": {
+                "agent_id": {
+                    "type": "string",
+                    "example": "agt_abc123"
+                },
+                "description": {
+                    "type": "string",
+                    "example": "A helpful voice assistant"
+                },
+                "granted_scopes": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    },
+                    "example": [
+                        "profile",
+                        "email"
+                    ]
+                },
+                "installed_at": {
+                    "type": "string",
+                    "example": "2024-01-15T10:30:00Z"
+                },
+                "logo_url": {
+                    "type": "string",
+                    "example": "https://example.com/logo.png"
+                },
+                "name": {
+                    "type": "string",
+                    "example": "My Voice Agent"
+                }
+            }
+        },
+        "github_com_eleven-am_voice-backend_internal_dto.InstalledAgentsResponse": {
+            "type": "object",
+            "properties": {
+                "agents": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/github_com_eleven-am_voice-backend_internal_dto.InstalledAgentResponse"
+                    }
+                }
+            }
+        },
+        "github_com_eleven-am_voice-backend_internal_dto.MarketplaceAgentResponse": {
+            "type": "object",
+            "properties": {
+                "avg_rating": {
+                    "type": "number",
+                    "example": 4.8
+                },
+                "category": {
+                    "type": "string",
+                    "example": "productivity"
+                },
+                "description": {
+                    "type": "string",
+                    "example": "A helpful voice assistant"
+                },
+                "id": {
+                    "type": "string",
+                    "example": "agt_abc123"
+                },
+                "is_verified": {
+                    "type": "boolean",
+                    "example": true
+                },
+                "keywords": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    },
+                    "example": [
+                        "helpful",
+                        "assistant"
+                    ]
+                },
+                "logo_url": {
+                    "type": "string",
+                    "example": "https://example.com/logo.png"
+                },
+                "name": {
+                    "type": "string",
+                    "example": "My Voice Agent"
+                },
+                "total_installs": {
+                    "type": "integer",
+                    "example": 5000
+                },
+                "total_reviews": {
+                    "type": "integer",
+                    "example": 200
+                }
+            }
+        },
+        "github_com_eleven-am_voice-backend_internal_dto.MarketplaceListResponse": {
+            "type": "object",
+            "properties": {
+                "agents": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/github_com_eleven-am_voice-backend_internal_dto.MarketplaceAgentResponse"
+                    }
+                },
+                "limit": {
+                    "type": "integer",
+                    "example": 20
+                },
+                "offset": {
+                    "type": "integer",
+                    "example": 0
+                }
+            }
+        },
+        "github_com_eleven-am_voice-backend_internal_dto.MarketplaceSearchResponse": {
+            "type": "object",
+            "properties": {
+                "agents": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/github_com_eleven-am_voice-backend_internal_dto.MarketplaceAgentResponse"
+                    }
+                }
+            }
+        },
+        "github_com_eleven-am_voice-backend_internal_dto.MeResponse": {
+            "type": "object",
+            "properties": {
+                "avatar_url": {
+                    "type": "string",
+                    "example": "https://example.com/avatar.png"
+                },
+                "email": {
+                    "type": "string",
+                    "example": "user@example.com"
+                },
+                "id": {
+                    "type": "string",
+                    "example": "usr_abc123"
+                },
+                "is_developer": {
+                    "type": "boolean",
+                    "example": false
+                },
+                "name": {
+                    "type": "string",
+                    "example": "John Doe"
+                }
+            }
+        },
+        "github_com_eleven-am_voice-backend_internal_dto.MetricsListResponse": {
+            "type": "object",
+            "properties": {
+                "agent_id": {
+                    "type": "string",
+                    "example": "agt_abc123"
+                },
+                "hours": {
+                    "type": "integer",
+                    "example": 24
+                },
+                "metrics": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/github_com_eleven-am_voice-backend_internal_dto.MetricsResponse"
+                    }
+                }
+            }
+        },
+        "github_com_eleven-am_voice-backend_internal_dto.MetricsResponse": {
+            "type": "object",
+            "properties": {
+                "agent_id": {
+                    "type": "string",
+                    "example": "agt_abc123"
+                },
+                "avg_latency_ms": {
+                    "type": "integer",
+                    "example": 150
+                },
+                "date": {
+                    "type": "string",
+                    "example": "2024-01-15"
+                },
+                "error_count": {
+                    "type": "integer",
+                    "example": 5
+                },
+                "hour": {
+                    "type": "integer",
+                    "example": 14
+                },
+                "new_installs": {
+                    "type": "integer",
+                    "example": 10
+                },
+                "responses": {
+                    "type": "integer",
+                    "example": 450
+                },
+                "sessions": {
+                    "type": "integer",
+                    "example": 100
+                },
+                "uninstalls": {
+                    "type": "integer",
+                    "example": 2
+                },
+                "unique_users": {
+                    "type": "integer",
+                    "example": 25
+                },
+                "utterances": {
+                    "type": "integer",
+                    "example": 500
+                }
+            }
+        },
+        "github_com_eleven-am_voice-backend_internal_dto.ReplyToReviewRequest": {
+            "type": "object",
+            "properties": {
+                "reply": {
+                    "type": "string",
+                    "example": "Thank you for your feedback!"
+                }
+            }
+        },
+        "github_com_eleven-am_voice-backend_internal_dto.ReviewListResponse": {
+            "type": "object",
+            "properties": {
+                "limit": {
+                    "type": "integer",
+                    "example": 20
+                },
+                "offset": {
+                    "type": "integer",
+                    "example": 0
+                },
+                "reviews": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/github_com_eleven-am_voice-backend_internal_dto.ReviewResponse"
+                    }
+                }
+            }
+        },
+        "github_com_eleven-am_voice-backend_internal_dto.ReviewResponse": {
+            "type": "object",
+            "properties": {
+                "body": {
+                    "type": "string",
+                    "example": "Great agent!"
+                },
+                "created_at": {
+                    "type": "string",
+                    "example": "2024-01-15T10:30:00Z"
+                },
+                "developer_reply": {
+                    "type": "string",
+                    "example": "Thank you!"
+                },
+                "id": {
+                    "type": "string",
+                    "example": "rev_abc123"
+                },
+                "rating": {
+                    "type": "integer",
+                    "example": 5
+                },
+                "replied_at": {
+                    "type": "string",
+                    "example": "2024-01-16T12:00:00Z"
+                },
+                "user_id": {
+                    "type": "string",
+                    "example": "usr_xyz789"
+                }
+            }
+        },
+        "github_com_eleven-am_voice-backend_internal_dto.SummaryResponse": {
+            "type": "object",
+            "properties": {
+                "agent_id": {
+                    "type": "string",
+                    "example": "agt_abc123"
+                },
+                "avg_latency_ms": {
+                    "type": "integer",
+                    "example": 145
+                },
+                "error_rate": {
+                    "type": "number",
+                    "example": 1.5
+                },
+                "net_installs": {
+                    "type": "integer",
+                    "example": 50
+                },
+                "period": {
+                    "type": "string",
+                    "example": "7d"
+                },
+                "total_responses": {
+                    "type": "integer",
+                    "example": 4500
+                },
+                "total_sessions": {
+                    "type": "integer",
+                    "example": 1000
+                },
+                "total_utterances": {
+                    "type": "integer",
+                    "example": 5000
+                },
+                "unique_users": {
+                    "type": "integer",
+                    "example": 200
+                }
+            }
+        },
+        "github_com_eleven-am_voice-backend_internal_dto.UpdateAgentRequest": {
+            "type": "object",
+            "properties": {
+                "capabilities": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    },
+                    "example": [
+                        "new",
+                        "capabilities"
+                    ]
+                },
+                "category": {
+                    "type": "string",
+                    "enum": [
+                        "productivity",
+                        "education",
+                        "entertainment",
+                        "lifestyle",
+                        "utility",
+                        "social",
+                        "finance",
+                        "health",
+                        "news",
+                        "assistant"
+                    ],
+                    "example": "education"
+                },
+                "description": {
+                    "type": "string",
+                    "example": "Updated description"
+                },
+                "keywords": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    },
+                    "example": [
+                        "updated",
+                        "keywords"
+                    ]
+                },
+                "logo_url": {
+                    "type": "string",
+                    "example": "https://example.com/new-logo.png"
+                },
+                "name": {
+                    "type": "string",
+                    "example": "Updated Agent Name"
+                }
+            }
+        },
+        "github_com_eleven-am_voice-backend_internal_dto.UpdateScopesRequest": {
+            "type": "object",
+            "properties": {
+                "scopes": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    },
+                    "example": [
+                        "profile",
+                        "email"
+                    ]
+                }
+            }
+        },
+        "github_com_eleven-am_voice-backend_internal_shared.APIError": {
+            "type": "object",
+            "properties": {
+                "code": {
+                    "type": "string",
+                    "example": "invalid_request"
+                },
+                "details": {
+                    "type": "object"
+                },
+                "message": {
+                    "type": "string",
+                    "example": "Invalid request body"
+                }
+            }
+        }
+    },
     "securityDefinitions": {
         "APIKeyAuth": {
+            "description": "API key for agent connections",
             "type": "apiKey",
             "name": "X-API-Key",
             "in": "header"
         },
-        "SessionAuth": {
+        "BearerAuth": {
+            "description": "JWT token from Better Auth. Format: Bearer \u003ctoken\u003e",
             "type": "apiKey",
-            "name": "session",
-            "in": "cookie"
+            "name": "Authorization",
+            "in": "header"
         }
     }
 }`

@@ -11,7 +11,7 @@ import onnx_asr
 import soundfile as sf
 from numpy.typing import NDArray
 
-from sidecar.types import Transcript
+from sidecar.domain.types import Transcript
 
 logger = logging.getLogger(__name__)
 

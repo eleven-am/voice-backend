@@ -28,10 +28,11 @@ type Callbacks struct {
 }
 
 type Config struct {
-	Address  string
-	Token    string
-	TLSCreds credentials.TransportCredentials
-	Backoff  BackoffConfig
+	Address        string
+	Token          string
+	TLSCreds       credentials.TransportCredentials
+	Backoff        BackoffConfig
+	MaxMessageSize int
 }
 
 type SessionOptions struct {

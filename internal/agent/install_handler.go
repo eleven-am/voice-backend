@@ -30,6 +30,15 @@ func (h *InstallHandler) RegisterRoutes(g *echo.Group) {
 	g.PUT("/:id/scopes", h.UpdateScopes)
 }
 
+// @Summary      List installed agents
+// @Description  Returns all agents installed by the authenticated user
+// @Tags         installs
+// @Produce      json
+// @Success      200  {object}  dto.InstalledAgentsResponse
+// @Failure      401  {object}  shared.APIError
+// @Failure      500  {object}  shared.APIError
+// @Security     BearerAuth
+// @Router       /me/agents [get]
 func (h *InstallHandler) List(c echo.Context) error {
 	userID, err := auth.RequireAuth(c)
 	if err != nil {
@@ -62,6 +71,21 @@ func (h *InstallHandler) List(c echo.Context) error {
 	return c.JSON(http.StatusOK, dto.InstalledAgentsResponse{Agents: response})
 }
 
+// @Summary      Install an agent
+// @Description  Installs a public agent for the authenticated user
+// @Tags         installs
+// @Accept       json
+// @Produce      json
+// @Param        id       path      string            true  "Agent ID"
+// @Param        request  body      dto.InstallRequest true  "Installation options"
+// @Success      201      {object}  dto.InstalledAgentResponse
+// @Failure      400      {object}  shared.APIError
+// @Failure      401      {object}  shared.APIError
+// @Failure      404      {object}  shared.APIError
+// @Failure      409      {object}  shared.APIError
+// @Failure      500      {object}  shared.APIError
+// @Security     BearerAuth
+// @Router       /me/agents/{id}/install [post]
 func (h *InstallHandler) Install(c echo.Context) error {
 	userID, err := auth.RequireAuth(c)
 	if err != nil {
@@ -113,6 +137,16 @@ func (h *InstallHandler) Install(c echo.Context) error {
 	})
 }
 
+// @Summary      Uninstall an agent
+// @Description  Removes an installed agent from the user's account
+// @Tags         installs
+// @Param        id  path  string  true  "Agent ID"
+// @Success      204  "No Content"
+// @Failure      401  {object}  shared.APIError
+// @Failure      404  {object}  shared.APIError
+// @Failure      500  {object}  shared.APIError
+// @Security     BearerAuth
+// @Router       /me/agents/{id} [delete]
 func (h *InstallHandler) Uninstall(c echo.Context) error {
 	userID, err := auth.RequireAuth(c)
 	if err != nil {
@@ -131,6 +165,19 @@ func (h *InstallHandler) Uninstall(c echo.Context) error {
 	return c.NoContent(http.StatusNoContent)
 }
 
+// @Summary      Update agent scopes
+// @Description  Updates the granted scopes for an installed agent
+// @Tags         installs
+// @Accept       json
+// @Param        id       path  string                   true  "Agent ID"
+// @Param        request  body  dto.UpdateScopesRequest  true  "New scopes"
+// @Success      204  "No Content"
+// @Failure      400  {object}  shared.APIError
+// @Failure      401  {object}  shared.APIError
+// @Failure      404  {object}  shared.APIError
+// @Failure      500  {object}  shared.APIError
+// @Security     BearerAuth
+// @Router       /me/agents/{id}/scopes [put]
 func (h *InstallHandler) UpdateScopes(c echo.Context) error {
 	userID, err := auth.RequireAuth(c)
 	if err != nil {

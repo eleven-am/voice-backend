@@ -11,13 +11,15 @@ import (
 
 // @BasePath /api/v1
 
-// @securityDefinitions.apikey SessionAuth
-// @in cookie
-// @name session
+// @securityDefinitions.apikey BearerAuth
+// @in header
+// @name Authorization
+// @description JWT token from Better Auth. Format: Bearer <token>
 
 // @securityDefinitions.apikey APIKeyAuth
 // @in header
 // @name X-API-Key
+// @description API key for agent connections
 
 func main() {
 	bootstrap.Run()

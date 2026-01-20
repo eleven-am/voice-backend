@@ -2,27 +2,18 @@ from __future__ import annotations
 
 import asyncio
 import logging
-import threading
 import time
-from typing import TYPE_CHECKING, Iterator
+from typing import TYPE_CHECKING, AsyncIterator
 
 import numpy as np
 
-from .tts_models import SAMPLE_RATE
-from .utils import chunk_text, is_oom_error
+from sidecar.tts.model_manager import SAMPLE_RATE
+from sidecar.shared.utils import chunk_text, is_oom_error
 
 if TYPE_CHECKING:
-    from sidecar.tts_models import KokoroModelManager, SynthesisConfig
+    from sidecar.tts.model_manager import KokoroModelManager, SynthesisConfig
 
 logger = logging.getLogger(__name__)
-
-
-def run_async_in_thread(coro):
-    loop = asyncio.new_event_loop()
-    try:
-        return loop.run_until_complete(coro)
-    finally:
-        loop.close()
 
 
 class SynthesisError(Exception):
@@ -36,20 +27,21 @@ class Synthesizer:
         self.model_manager = model_manager
         self.config = config
 
-    def synthesize(
+    async def synthesize(
         self,
         text: str,
         voice_id: str,
         speed: float | None = None,
-        stop_event: threading.Event | None = None,
-    ) -> Iterator[np.ndarray]:
+        stop_event: asyncio.Event | None = None,
+    ) -> AsyncIterator[np.ndarray]:
         if not text.strip():
             return
 
         if speed is None:
             speed = self.config.speed
 
-        speed = max(0.5, min(2.0, speed))
+        if speed < 0.5 or speed > 2.0:
+            raise SynthesisError(f"Speed {speed} out of range (0.5-2.0)", code=6)
 
         voice_lang = self.model_manager.get_voice_lang(voice_id)
         text_chunks = chunk_text(text)
@@ -57,34 +49,31 @@ class Synthesizer:
         start = time.perf_counter()
         used_cpu_fallback = False
 
-        async def collect_audio(kokoro, chunk_text: str):
-            audio_chunks = []
-            async for audio_chunk, _ in kokoro.create_stream(chunk_text, voice_id, lang=voice_lang, speed=speed):
-                if stop_event and stop_event.is_set():
-                    break
-                audio_chunks.append(audio_chunk)
-            return audio_chunks
-
         for text_chunk in text_chunks:
             if stop_event and stop_event.is_set():
                 break
 
             try:
-                with self.model_manager as kokoro:
-                    if kokoro is None:
-                        raise SynthesisError("Model not loaded", code=2)
+                kokoro = await self.model_manager.get_kokoro()
 
-                    audio_chunks = run_async_in_thread(collect_audio(kokoro, text_chunk))
-                    for audio_chunk in audio_chunks:
-                        yield audio_chunk
+                async for audio_chunk, _ in kokoro.create_stream(
+                    text_chunk, voice_id, lang=voice_lang, speed=speed
+                ):
+                    if stop_event and stop_event.is_set():
+                        break
+                    yield audio_chunk
+
             except Exception as e:
                 if is_oom_error(e) and self.model_manager.config.fallback_to_cpu:
                     logger.warning(f"TTS OOM error, using CPU for this request: {e}")
                     used_cpu_fallback = True
                     try:
-                        cpu_kokoro = self.model_manager.get_cpu_model()
-                        audio_chunks = run_async_in_thread(collect_audio(cpu_kokoro, text_chunk))
-                        for audio_chunk in audio_chunks:
+                        cpu_kokoro = await self.model_manager.get_cpu_model()
+                        async for audio_chunk, _ in cpu_kokoro.create_stream(
+                            text_chunk, voice_id, lang=voice_lang, speed=speed
+                        ):
+                            if stop_event and stop_event.is_set():
+                                break
                             yield audio_chunk
                     except Exception as cpu_e:
                         raise SynthesisError(f"CPU fallback synthesis failed: {cpu_e}", code=3) from cpu_e

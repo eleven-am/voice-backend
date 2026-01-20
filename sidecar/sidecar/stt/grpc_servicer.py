@@ -5,14 +5,15 @@ import logging
 from collections.abc import AsyncIterator, Iterable, Iterator
 from concurrent.futures import ThreadPoolExecutor
 
-from sidecar.stt import pb2 as stt_pb2, pb2_grpc as stt_pb2_grpc
-from sidecar.application.partial_service import PartialTranscriptService
-from sidecar.application.transcription_service import TranscriptionService
+from sidecar.stt import pb2 as stt_pb2
+from sidecar.stt import pb2_grpc as stt_pb2_grpc
+from sidecar.stt.partials import PartialTranscriptService
+from sidecar.stt.transcription import TranscriptionService
 from sidecar.domain.constants import TARGET_SAMPLE_RATE, samples_to_ms
 from sidecar.domain.entities import SpeechSession
 from sidecar.stt.engine_manager import STTEngineManager
-from sidecar.infrastructure.codecs.audio_codec import pcm16_to_float32, resample_audio
-from sidecar.infrastructure.grpc.message_mapper import MessageMapper
+from sidecar.audio.codecs import pcm16_to_float32, resample_audio
+from sidecar.stt.message_mapper import MessageMapper
 from sidecar.audio.opus import OPUS_SAMPLE_RATE, OpusStreamDecoder
 from sidecar.stt.pipeline import STTPipeline, STTPipelineConfig
 from sidecar.domain.types import SessionConfig, SpeechStarted, SpeechStopped, Transcript

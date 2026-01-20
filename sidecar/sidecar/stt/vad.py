@@ -7,7 +7,7 @@ import numpy as np
 import torch
 from numpy.typing import NDArray
 
-from sidecar.types import SpeechStarted, SpeechStopped
+from sidecar.domain.types import SpeechStarted, SpeechStopped
 
 logger = logging.getLogger(__name__)
 
@@ -90,20 +90,92 @@ class SileroVAD:
         return timestamps
 
 
+MAX_BUFFER_SAMPLES = (15000 + 3000 + 1000) * MS_SAMPLE_RATE
+
+
+class AudioRingBuffer:
+    __slots__ = ("_buffer", "_write_pos", "_length")
+
+    def __init__(self, max_samples: int = MAX_BUFFER_SAMPLES) -> None:
+        self._buffer = np.zeros(max_samples, dtype=np.float32)
+        self._write_pos = 0
+        self._length = 0
+
+    def append(self, audio: NDArray[np.float32]) -> None:
+        n = len(audio)
+        if n == 0:
+            return
+
+        if n >= len(self._buffer):
+            self._buffer[:] = audio[-len(self._buffer):]
+            self._write_pos = 0
+            self._length = len(self._buffer)
+            return
+
+        end_pos = self._write_pos + n
+        if end_pos <= len(self._buffer):
+            self._buffer[self._write_pos:end_pos] = audio
+        else:
+            first_part = len(self._buffer) - self._write_pos
+            self._buffer[self._write_pos:] = audio[:first_part]
+            self._buffer[:n - first_part] = audio[first_part:]
+
+        self._write_pos = end_pos % len(self._buffer)
+        self._length = min(self._length + n, len(self._buffer))
+
+    def get_last_n(self, n: int) -> NDArray[np.float32]:
+        n = min(n, self._length)
+        if n == 0:
+            return np.array([], dtype=np.float32)
+
+        end_pos = self._write_pos
+        start_pos = (end_pos - n) % len(self._buffer)
+
+        if start_pos < end_pos:
+            return self._buffer[start_pos:end_pos].copy()
+        else:
+            return np.concatenate([self._buffer[start_pos:], self._buffer[:end_pos]])
+
+    def get_all(self) -> NDArray[np.float32]:
+        return self.get_last_n(self._length)
+
+    def get_slice(self, start_sample: int, end_sample: int) -> NDArray[np.float32]:
+        start_sample = max(0, min(start_sample, self._length))
+        end_sample = max(0, min(end_sample, self._length))
+        if start_sample >= end_sample:
+            return np.array([], dtype=np.float32)
+
+        oldest_pos = (self._write_pos - self._length) % len(self._buffer)
+        actual_start = (oldest_pos + start_sample) % len(self._buffer)
+        actual_end = (oldest_pos + end_sample) % len(self._buffer)
+
+        if actual_start < actual_end:
+            return self._buffer[actual_start:actual_end].copy()
+        else:
+            return np.concatenate([self._buffer[actual_start:], self._buffer[:actual_end]])
+
+    def __len__(self) -> int:
+        return self._length
+
+    def clear(self) -> None:
+        self._write_pos = 0
+        self._length = 0
+
+
 @dataclass
 class VADProcessor:
     config: VADConfig = field(default_factory=VADConfig)
     state: VADState = field(default_factory=VADState)
-    buffer: NDArray[np.float32] = field(default_factory=lambda: np.array([], dtype=np.float32))
+    buffer: AudioRingBuffer = field(default_factory=AudioRingBuffer)
     _vad_model: SileroVAD = field(default_factory=SileroVAD)
 
     def _duration_ms(self) -> int:
         return len(self.buffer) // MS_SAMPLE_RATE
 
     def append(self, audio: NDArray[np.float32]) -> tuple[SpeechStarted | SpeechStopped | None, SpeechSegment | None]:
-        self.buffer = np.append(self.buffer, audio)
+        self.buffer.append(audio)
 
-        audio_window = self.buffer[-VAD_WINDOW_SIZE_SAMPLES:]
+        audio_window = self.buffer.get_last_n(VAD_WINDOW_SIZE_SAMPLES)
         window_duration_ms = len(audio_window) // MS_SAMPLE_RATE
 
         raw_timestamps = self._vad_model.get_speech_timestamps(
@@ -161,17 +233,14 @@ class VADProcessor:
         start_sample = self.state.audio_start_ms * MS_SAMPLE_RATE
         end_sample = self.state.audio_end_ms * MS_SAMPLE_RATE
 
-        start_sample = max(0, min(start_sample, len(self.buffer)))
-        end_sample = max(0, min(end_sample, len(self.buffer)))
-
         return SpeechSegment(
-            audio=self.buffer[start_sample:end_sample].copy(),
+            audio=self.buffer.get_slice(start_sample, end_sample),
             start_ms=self.state.audio_start_ms,
             end_ms=self.state.audio_end_ms,
         )
 
     def _clear_buffer(self) -> None:
-        self.buffer = np.array([], dtype=np.float32)
+        self.buffer.clear()
         self.state = VADState()
 
     def reset(self) -> None:

@@ -8,7 +8,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from sidecar.utils import (
+from sidecar.shared.utils import (
     MAX_CHUNK_CHARS,
     chunk_text,
     get_env,

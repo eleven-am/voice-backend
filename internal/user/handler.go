@@ -27,6 +27,15 @@ func (h *Handler) RegisterRoutes(g *echo.Group) {
 	g.POST("/me/developer", h.BecomeDeveloper)
 }
 
+// @Summary      Get current user
+// @Description  Returns the currently authenticated user's profile
+// @Tags         auth
+// @Produce      json
+// @Success      200  {object}  dto.MeResponse
+// @Failure      401  {object}  shared.APIError
+// @Failure      404  {object}  shared.APIError
+// @Security     BearerAuth
+// @Router       /auth/me [get]
 func (h *Handler) Me(c echo.Context) error {
 	claims := auth.GetClaims(c)
 	if claims == nil {
@@ -48,6 +57,15 @@ func (h *Handler) Me(c echo.Context) error {
 	})
 }
 
+// @Summary      Become a developer
+// @Description  Upgrades the current user to developer status
+// @Tags         auth
+// @Success      204  "No Content"
+// @Failure      401  {object}  shared.APIError
+// @Failure      404  {object}  shared.APIError
+// @Failure      500  {object}  shared.APIError
+// @Security     BearerAuth
+// @Router       /auth/me/developer [post]
 func (h *Handler) BecomeDeveloper(c echo.Context) error {
 	claims := auth.GetClaims(c)
 	if claims == nil {

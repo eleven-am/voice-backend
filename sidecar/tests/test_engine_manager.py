@@ -7,7 +7,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from sidecar.engine_manager import (
+from sidecar.stt.engine_manager import (
     MAX_OOM_RETRIES,
     EngineConfig,
     ManagedEngine,
@@ -61,7 +61,7 @@ class TestClearCudaCache:
 
     def test_clear_without_torch(self):
         with patch.dict("sys.modules", {"torch": None}):
-            with patch("sidecar.engine_manager.gc.collect") as mock_gc:
+            with patch("sidecar.stt.engine_manager.gc.collect") as mock_gc:
                 try:
                     _clear_cuda_cache()
                 except (ImportError, TypeError):
@@ -145,7 +145,7 @@ class TestManagedEngine:
         callback.assert_called_once_with("test")
 
     def test_unload_calls_lifecycle_method(self):
-        from sidecar.stt_protocol import STTEngineLifecycle
+        from sidecar.stt.engines.protocol import STTEngineLifecycle
 
         mock_engine = MagicMock(spec=STTEngineLifecycle)
         create_fn = MagicMock(return_value=mock_engine)
@@ -203,7 +203,7 @@ class TestSTTEngineManager:
             wrapper._increment_ref()
             wrapper._decrement_ref()
 
-        with patch("sidecar.engine_manager._clear_cuda_cache"):
+        with patch("sidecar.stt.engine_manager._clear_cuda_cache"):
             manager.mark_model_failed("test-model")
 
         assert "test-model" in manager._failed_models
@@ -213,7 +213,7 @@ class TestSTTEngineManager:
         config = EngineConfig(model_id="test-model", device="cuda", ttl=-1)
         manager = STTEngineManager(config)
 
-        with patch("sidecar.engine_manager._clear_cuda_cache"):
+        with patch("sidecar.stt.engine_manager._clear_cuda_cache"):
             result = manager._attempt_cpu_fallback()
 
         assert result is True
@@ -257,7 +257,7 @@ class TestSTTEngineManager:
         config = EngineConfig(model_id="main-model", device="cuda", ttl=-1, fallback_models=[])
         manager = STTEngineManager(config)
 
-        with patch("sidecar.engine_manager._clear_cuda_cache"):
+        with patch("sidecar.stt.engine_manager._clear_cuda_cache"):
             result = manager.try_fallback()
 
         assert result is True
@@ -279,7 +279,7 @@ class TestSTTEngineManager:
         manager._tried_cpu_fallback = True
         manager._failed_models.add("some-model")
 
-        with patch("sidecar.engine_manager._clear_cuda_cache"):
+        with patch("sidecar.stt.engine_manager._clear_cuda_cache"):
             manager.reset_device_preference()
 
         assert manager._current_device == "cuda"
@@ -339,7 +339,7 @@ class TestSTTEngineManager:
             return MagicMock()
 
         with patch.object(manager, "_create_engine", side_effect=create_side_effect):
-            with patch("sidecar.engine_manager._clear_cuda_cache"):
+            with patch("sidecar.stt.engine_manager._clear_cuda_cache"):
                 wrapper = manager.get_engine_with_retry()
 
                 assert wrapper is not None
@@ -352,7 +352,7 @@ class TestSTTEngineManager:
 
         with patch.object(manager, "_create_engine") as mock_create:
             mock_create.side_effect = RuntimeError("CUDA out of memory")
-            with patch("sidecar.engine_manager._clear_cuda_cache"):
+            with patch("sidecar.stt.engine_manager._clear_cuda_cache"):
                 with pytest.raises(RuntimeError, match="All STT models failed"):
                     manager.get_engine_with_retry()
 

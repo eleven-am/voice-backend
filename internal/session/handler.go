@@ -80,6 +80,19 @@ func metricsToResponse(m *Metrics) dto.MetricsResponse {
 	}
 }
 
+// @Summary      Get agent metrics
+// @Description  Returns hourly metrics for an agent owned by the developer
+// @Tags         metrics
+// @Produce      json
+// @Param        id     path      string  true   "Agent ID"
+// @Param        hours  query     int     false  "Number of hours (default 24, max 168)"
+// @Success      200    {object}  dto.MetricsListResponse
+// @Failure      401    {object}  shared.APIError
+// @Failure      403    {object}  shared.APIError
+// @Failure      404    {object}  shared.APIError
+// @Failure      500    {object}  shared.APIError
+// @Security     BearerAuth
+// @Router       /metrics/agents/{id} [get]
 func (h *Handler) GetMetrics(c echo.Context) error {
 	agentID := c.Param("id")
 
@@ -113,6 +126,18 @@ func (h *Handler) GetMetrics(c echo.Context) error {
 	})
 }
 
+// @Summary      Get agent metrics summary
+// @Description  Returns aggregated 7-day metrics summary for an agent
+// @Tags         metrics
+// @Produce      json
+// @Param        id   path      string  true  "Agent ID"
+// @Success      200  {object}  dto.SummaryResponse
+// @Failure      401  {object}  shared.APIError
+// @Failure      403  {object}  shared.APIError
+// @Failure      404  {object}  shared.APIError
+// @Failure      500  {object}  shared.APIError
+// @Security     BearerAuth
+// @Router       /metrics/agents/{id}/summary [get]
 func (h *Handler) GetSummary(c echo.Context) error {
 	agentID := c.Param("id")
 

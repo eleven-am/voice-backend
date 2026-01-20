@@ -9,8 +9,8 @@ from collections.abc import Callable
 from dataclasses import dataclass, field
 from typing import Generic, TypeVar
 
-from sidecar.stt_protocol import STTEngine, STTEngineLifecycle
-from sidecar.utils import is_oom_error
+from sidecar.stt.engines.protocol import STTEngine, STTEngineLifecycle
+from sidecar.shared.utils import is_oom_error
 
 logger = logging.getLogger(__name__)
 
@@ -128,7 +128,7 @@ class STTEngineManager:
                 del self.engines[engine_id]
 
     def _create_engine(self, model_id: str) -> STTEngine:
-        from sidecar.engines import ParakeetConfig, ParakeetEngine
+        from sidecar.stt.engines import ParakeetConfig, ParakeetEngine
 
         config = ParakeetConfig(model_id=model_id, device=self._current_device)
         return ParakeetEngine(config)

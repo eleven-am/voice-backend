@@ -1,18 +1,15 @@
 from __future__ import annotations
 
 import io
-import subprocess
 from unittest.mock import MagicMock, patch
 
 import numpy as np
 import pytest
 
-from sidecar.audio_preprocessing import (
+from sidecar.audio.preprocessing import (
     CHUNK_DURATION_MS,
     TARGET_SAMPLE_RATE,
     AudioChunk,
-    _decode_with_ffmpeg,
-    _decode_with_soundfile,
     _detect_format,
     chunk_audio,
     decode_audio,
@@ -64,133 +61,39 @@ class TestDetectFormat:
         assert _detect_format("audio.Mp3") == "mp3"
 
 
-class TestDecodeWithSoundfile:
-    def test_decode_mono_audio(self):
-        mock_sf = MagicMock()
-        mock_audio = np.array([0.1, 0.2, 0.3], dtype=np.float32)
-        mock_sf.read.return_value = (mock_audio, TARGET_SAMPLE_RATE)
-
-        with patch.dict("sys.modules", {"soundfile": mock_sf}):
-            result = _decode_with_soundfile(b"fake audio data", None)
-
-        assert result is not None
-        assert len(result) == 3
-        mock_sf.read.assert_called_once()
-
-    def test_decode_stereo_audio_converts_to_mono(self):
-        mock_sf = MagicMock()
-        mock_audio = np.array([[0.1, 0.2], [0.3, 0.4], [0.5, 0.6]], dtype=np.float32)
-        mock_sf.read.return_value = (mock_audio, TARGET_SAMPLE_RATE)
-
-        with patch.dict("sys.modules", {"soundfile": mock_sf}):
-            result = _decode_with_soundfile(b"fake audio data", None)
-
-        assert result is not None
-        assert len(result) == 3
-        assert result.ndim == 1
-
-    def test_decode_resamples_if_different_rate(self):
-        mock_sf = MagicMock()
-        mock_audio = np.array([0.1, 0.2, 0.3], dtype=np.float32)
-        mock_sf.read.return_value = (mock_audio, 44100)
-
-        with patch.dict("sys.modules", {"soundfile": mock_sf}):
-            with patch("sidecar.audio_preprocessing.soxr.resample") as mock_resample:
-                mock_resample.return_value = np.array([0.1, 0.15, 0.2, 0.25, 0.3], dtype=np.float32)
-                result = _decode_with_soundfile(b"fake audio data", None)
-
-        assert result is not None
-        mock_resample.assert_called_once()
-
-    def test_decode_returns_none_on_error(self):
-        mock_sf = MagicMock()
-        mock_sf.read.side_effect = Exception("decode error")
-
-        with patch.dict("sys.modules", {"soundfile": mock_sf}):
-            result = _decode_with_soundfile(b"fake audio data", None)
-
-        assert result is None
-
-
-class TestDecodeWithFfmpeg:
-    def test_decode_success(self):
-        with patch("sidecar.audio_preprocessing.subprocess.Popen") as mock_popen:
-            mock_proc = MagicMock()
-            mock_proc.communicate.return_value = (
-                np.array([0.1, 0.2], dtype=np.float32).tobytes(),
-                b"",
-            )
-            mock_proc.returncode = 0
-            mock_popen.return_value = mock_proc
-
-            result = _decode_with_ffmpeg(b"fake audio", "mp3")
-
-            assert result is not None
-            assert len(result) == 2
-
-    def test_decode_failure_raises_error(self):
-        with patch("sidecar.audio_preprocessing.subprocess.Popen") as mock_popen:
-            mock_proc = MagicMock()
-            mock_proc.communicate.return_value = (b"", b"decode error")
-            mock_proc.returncode = 1
-            mock_popen.return_value = mock_proc
-
-            with pytest.raises(ValueError, match="ffmpeg decode error"):
-                _decode_with_ffmpeg(b"fake audio", "mp3")
-
-    def test_decode_timeout_raises_error(self):
-        with patch("sidecar.audio_preprocessing.subprocess.Popen") as mock_popen:
-            mock_proc = MagicMock()
-            mock_proc.communicate.side_effect = [
-                subprocess.TimeoutExpired("ffmpeg", 300),
-                (b"", b""),
-            ]
-            mock_proc.kill = MagicMock()
-            mock_popen.return_value = mock_proc
-
-            with pytest.raises(ValueError, match="timed out"):
-                _decode_with_ffmpeg(b"fake audio", "mp3")
-
-            mock_proc.kill.assert_called_once()
-
-    def test_decode_without_format(self):
-        with patch("sidecar.audio_preprocessing.subprocess.Popen") as mock_popen:
-            mock_proc = MagicMock()
-            mock_proc.communicate.return_value = (
-                np.array([0.1], dtype=np.float32).tobytes(),
-                b"",
-            )
-            mock_proc.returncode = 0
-            mock_popen.return_value = mock_proc
-
-            result = _decode_with_ffmpeg(b"fake audio", None)
-
-            assert result is not None
-            call_args = mock_popen.call_args[0][0]
-            assert "-f" not in call_args[:4]
-
-
 class TestDecodeAudio:
-    def test_uses_soundfile_first(self):
-        with patch("sidecar.audio_preprocessing._decode_with_soundfile") as mock_sf:
-            mock_sf.return_value = np.array([0.1, 0.2], dtype=np.float32)
+    def test_decode_raises_on_invalid_audio(self):
+        with pytest.raises(ValueError, match="Failed to"):
+            decode_audio(b"not valid audio data", "mp3")
 
-            result = decode_audio(b"audio data", "mp3")
+    def test_decode_with_format_hint(self):
+        with patch("sidecar.audio.preprocessing.AudioSegment.from_file") as mock_from_file:
+            mock_audio = MagicMock()
+            mock_audio.set_frame_rate.return_value = mock_audio
+            mock_audio.set_channels.return_value = mock_audio
+            mock_audio.get_array_of_samples.return_value = np.array([0, 100, -100], dtype=np.int16)
+            mock_from_file.return_value = mock_audio
 
+            result = decode_audio(b"fake audio", "mp3")
+
+            mock_from_file.assert_called_once()
+            call_kwargs = mock_from_file.call_args[1]
+            assert call_kwargs.get("format") == "mp3"
             assert result is not None
-            mock_sf.assert_called_once()
 
-    def test_falls_back_to_ffmpeg(self):
-        with patch("sidecar.audio_preprocessing._decode_with_soundfile") as mock_sf:
-            with patch("sidecar.audio_preprocessing._decode_with_ffmpeg") as mock_ff:
-                mock_sf.return_value = None
-                mock_ff.return_value = np.array([0.1, 0.2], dtype=np.float32)
+    def test_decode_without_format_hint(self):
+        with patch("sidecar.audio.preprocessing.AudioSegment.from_file") as mock_from_file:
+            mock_audio = MagicMock()
+            mock_audio.set_frame_rate.return_value = mock_audio
+            mock_audio.set_channels.return_value = mock_audio
+            mock_audio.get_array_of_samples.return_value = np.array([0, 100, -100], dtype=np.int16)
+            mock_from_file.return_value = mock_audio
 
-                result = decode_audio(b"audio data", "mp3")
+            result = decode_audio(b"fake audio", None)
 
-                assert result is not None
-                mock_sf.assert_called_once()
-                mock_ff.assert_called_once()
+            mock_from_file.assert_called_once()
+            call_kwargs = mock_from_file.call_args[1]
+            assert "format" not in call_kwargs or call_kwargs.get("format") is None
 
 
 class TestChunkAudio:
@@ -249,8 +152,8 @@ class TestChunkAudio:
 
 class TestPreprocessAudio:
     def test_preprocess_with_filename(self):
-        with patch("sidecar.audio_preprocessing.decode_audio") as mock_decode:
-            with patch("sidecar.audio_preprocessing.chunk_audio") as mock_chunk:
+        with patch("sidecar.audio.preprocessing.decode_audio") as mock_decode:
+            with patch("sidecar.audio.preprocessing.chunk_audio") as mock_chunk:
                 mock_decode.return_value = np.zeros(TARGET_SAMPLE_RATE * 60, dtype=np.float32)
                 mock_chunk.return_value = [
                     AudioChunk(
@@ -267,8 +170,8 @@ class TestPreprocessAudio:
                 assert len(chunks) == 1
 
     def test_preprocess_without_filename(self):
-        with patch("sidecar.audio_preprocessing.decode_audio") as mock_decode:
-            with patch("sidecar.audio_preprocessing.chunk_audio") as mock_chunk:
+        with patch("sidecar.audio.preprocessing.decode_audio") as mock_decode:
+            with patch("sidecar.audio.preprocessing.chunk_audio") as mock_chunk:
                 mock_decode.return_value = np.zeros(TARGET_SAMPLE_RATE * 60, dtype=np.float32)
                 mock_chunk.return_value = [
                     AudioChunk(

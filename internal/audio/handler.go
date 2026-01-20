@@ -18,9 +18,9 @@ import (
 )
 
 const (
-	maxFileSize      = 25 * 1024 * 1024
+	maxFileSize      = 500 * 1024 * 1024
 	maxInputLength   = 4096
-	maxAudioDataSize = 50 * 1024 * 1024
+	maxAudioDataSize = 500 * 1024 * 1024
 	maxSpeed         = 4.0
 	minSpeed         = 0.25
 	synthesisTimeout = 30 * time.Second
@@ -70,6 +70,7 @@ type TranscriptionVerboseResponse struct {
 	Duration float64   `json:"duration"`
 	Text     string    `json:"text"`
 	Segments []Segment `json:"segments,omitempty"`
+	Words    []Word    `json:"words,omitempty"`
 }
 
 type Segment struct {
@@ -77,6 +78,12 @@ type Segment struct {
 	Start float64 `json:"start"`
 	End   float64 `json:"end"`
 	Text  string  `json:"text"`
+}
+
+type Word struct {
+	Word  string  `json:"word"`
+	Start float64 `json:"start"`
+	End   float64 `json:"end"`
 }
 
 type VoiceResponse struct {
@@ -262,17 +269,22 @@ func (h *Handler) HandleTranscriptions(c echo.Context) error {
 		responseFormat = "json"
 	}
 
-	format, err := detectAudioFormat(file.Filename)
-	if err != nil {
-		return shared.BadRequest("unsupported_format", err.Error())
+	timestampGranularities := c.Request().Form["timestamp_granularities[]"]
+	includeWordTimestamps := false
+	for _, g := range timestampGranularities {
+		if g == "word" {
+			includeWordTimestamps = true
+			break
+		}
 	}
 
 	req := BatchTranscribeRequest{
-		Format:    format,
-		AudioData: audioData,
-		Language:  language,
-		ModelID:   model,
-		Task:      "transcribe",
+		Filename:              file.Filename,
+		AudioData:             audioData,
+		Language:              language,
+		ModelID:               model,
+		Task:                  "transcribe",
+		IncludeWordTimestamps: includeWordTimestamps,
 	}
 
 	result, err := BatchTranscribe(c.Request().Context(), h.sttConfig, req)
@@ -296,12 +308,22 @@ func (h *Handler) HandleTranscriptions(c echo.Context) error {
 			})
 		}
 
+		words := make([]Word, 0, len(result.Words))
+		for _, w := range result.Words {
+			words = append(words, Word{
+				Word:  w.Word,
+				Start: float64(w.Start),
+				End:   float64(w.End),
+			})
+		}
+
 		return c.JSON(http.StatusOK, TranscriptionVerboseResponse{
 			Task:     "transcribe",
 			Language: language,
 			Duration: float64(result.AudioDurationMs) / 1000.0,
 			Text:     result.Text,
 			Segments: segments,
+			Words:    words,
 		})
 	}
 
@@ -363,26 +385,4 @@ func (h *Handler) HandleListModels(c echo.Context) error {
 	}
 
 	return c.JSON(http.StatusOK, resp)
-}
-
-func detectAudioFormat(filename string) (string, error) {
-	filename = strings.ToLower(filename)
-	switch {
-	case strings.HasSuffix(filename, ".mp3"):
-		return "mp3", nil
-	case strings.HasSuffix(filename, ".wav"):
-		return "wav", nil
-	case strings.HasSuffix(filename, ".opus"):
-		return "opus", nil
-	case strings.HasSuffix(filename, ".ogg"):
-		return "ogg", nil
-	case strings.HasSuffix(filename, ".flac"):
-		return "flac", nil
-	case strings.HasSuffix(filename, ".m4a"):
-		return "m4a", nil
-	case strings.HasSuffix(filename, ".webm"):
-		return "webm", nil
-	default:
-		return "", fmt.Errorf("unsupported audio format: %s", filename)
-	}
 }

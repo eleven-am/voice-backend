@@ -13,14 +13,18 @@ import (
 	"google.golang.org/grpc/metadata"
 )
 
-const transcriptionTimeout = 60 * time.Second
+const (
+	transcriptionTimeout  = 60 * time.Second
+	defaultMaxMessageSize = 512 * 1024 * 1024
+)
 
 type BatchTranscribeRequest struct {
-	Format    string
-	AudioData []byte
-	Language  string
-	ModelID   string
-	Task      string
+	Filename              string
+	AudioData             []byte
+	Language              string
+	ModelID               string
+	Task                  string
+	IncludeWordTimestamps bool
 }
 
 type BatchTranscribeResult struct {
@@ -28,6 +32,7 @@ type BatchTranscribeResult struct {
 	AudioDurationMs      uint64
 	ProcessingDurationMs uint64
 	Segments             []*sttpb.Segment
+	Words                []*sttpb.TranscriptWord
 	Model                string
 }
 
@@ -42,7 +47,17 @@ func BatchTranscribe(ctx context.Context, cfg transcription.Config, req BatchTra
 		creds = grpc.WithTransportCredentials(insecure.NewCredentials())
 	}
 
-	conn, err := grpc.NewClient(cfg.Address, creds)
+	maxMsgSize := cfg.MaxMessageSize
+	if maxMsgSize <= 0 {
+		maxMsgSize = defaultMaxMessageSize
+	}
+
+	conn, err := grpc.NewClient(cfg.Address, creds,
+		grpc.WithDefaultCallOptions(
+			grpc.MaxCallRecvMsgSize(maxMsgSize),
+			grpc.MaxCallSendMsgSize(maxMsgSize),
+		),
+	)
 	if err != nil {
 		return nil, fmt.Errorf("dial sidecar: %w", err)
 	}
@@ -61,40 +76,23 @@ func BatchTranscribe(ctx context.Context, cfg transcription.Config, req BatchTra
 	}
 
 	sessionCfg := &sttpb.SessionConfig{
-		Language:   req.Language,
-		ModelId:    req.ModelID,
-		Partials:   false,
-		SampleRate: 16000,
-		Task:       req.Task,
+		Language:              req.Language,
+		ModelId:               req.ModelID,
+		Partials:              false,
+		SampleRate:            16000,
+		Task:                  req.Task,
+		IncludeWordTimestamps: req.IncludeWordTimestamps,
 	}
 
 	if err := stream.Send(&sttpb.ClientMessage{Msg: &sttpb.ClientMessage_Config{Config: sessionCfg}}); err != nil {
 		return nil, fmt.Errorf("send config: %w", err)
 	}
 
-	switch req.Format {
-	case "opus":
-		if err := stream.Send(&sttpb.ClientMessage{Msg: &sttpb.ClientMessage_OpusFrame{OpusFrame: &sttpb.OpusFrame{
-			Data:       req.AudioData,
-			SampleRate: 48000,
-			Channels:   1,
-		}}}); err != nil {
-			return nil, fmt.Errorf("send opus: %w", err)
-		}
-	case "pcm", "pcm16", "wav":
-		if err := stream.Send(&sttpb.ClientMessage{Msg: &sttpb.ClientMessage_Audio{Audio: &sttpb.AudioFrame{
-			SampleRate: 16000,
-			Pcm16:      req.AudioData,
-		}}}); err != nil {
-			return nil, fmt.Errorf("send pcm: %w", err)
-		}
-	default:
-		if err := stream.Send(&sttpb.ClientMessage{Msg: &sttpb.ClientMessage_EncodedAudio{EncodedAudio: &sttpb.EncodedAudio{
-			Format: req.Format,
-			Data:   req.AudioData,
-		}}}); err != nil {
-			return nil, fmt.Errorf("send encoded audio: %w", err)
-		}
+	if err := stream.Send(&sttpb.ClientMessage{Msg: &sttpb.ClientMessage_EncodedAudio{EncodedAudio: &sttpb.EncodedAudio{
+		Format: req.Filename,
+		Data:   req.AudioData,
+	}}}); err != nil {
+		return nil, fmt.Errorf("send audio: %w", err)
 	}
 
 	if err := stream.Send(&sttpb.ClientMessage{Msg: &sttpb.ClientMessage_EndOfStream{EndOfStream: true}}); err != nil {
@@ -128,6 +126,7 @@ func BatchTranscribe(ctx context.Context, cfg transcription.Config, req BatchTra
 					AudioDurationMs:      t.AudioDurationMs,
 					ProcessingDurationMs: t.ProcessingDurationMs,
 					Segments:             t.Segments,
+					Words:                t.Words,
 					Model:                t.Model,
 				}
 			}

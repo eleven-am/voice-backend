@@ -5,7 +5,7 @@ from typing import Protocol, runtime_checkable
 import numpy as np
 from numpy.typing import NDArray
 
-from sidecar.types import Transcript
+from sidecar.domain.types import Transcript
 
 
 @runtime_checkable

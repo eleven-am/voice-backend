@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from sidecar.types import Transcript
+from sidecar.domain.types import Transcript
 
 
 def deduplicate_words(text: str, confirmed_words: list[str]) -> tuple[str, list[str]]:

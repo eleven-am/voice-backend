@@ -83,6 +83,16 @@ func agentToResponse(a *Agent) dto.AgentResponse {
 	}
 }
 
+// @Summary      List developer's agents
+// @Description  Returns all agents owned by the authenticated developer
+// @Tags         agents
+// @Produce      json
+// @Success      200  {object}  dto.AgentListResponse
+// @Failure      401  {object}  shared.APIError
+// @Failure      403  {object}  shared.APIError
+// @Failure      500  {object}  shared.APIError
+// @Security     BearerAuth
+// @Router       /agents [get]
 func (h *Handler) List(c echo.Context) error {
 	developerID, err := h.requireDeveloper(c)
 	if err != nil {
@@ -103,6 +113,19 @@ func (h *Handler) List(c echo.Context) error {
 	return c.JSON(http.StatusOK, dto.AgentListResponse{Agents: response})
 }
 
+// @Summary      Create a new agent
+// @Description  Creates a new agent for the authenticated developer
+// @Tags         agents
+// @Accept       json
+// @Produce      json
+// @Param        request  body      dto.CreateAgentRequest  true  "Agent details"
+// @Success      201      {object}  dto.AgentResponse
+// @Failure      400      {object}  shared.APIError
+// @Failure      401      {object}  shared.APIError
+// @Failure      403      {object}  shared.APIError
+// @Failure      500      {object}  shared.APIError
+// @Security     BearerAuth
+// @Router       /agents [post]
 func (h *Handler) Create(c echo.Context) error {
 	developerID, err := h.requireDeveloper(c)
 	if err != nil {
@@ -145,6 +168,18 @@ func (h *Handler) Create(c echo.Context) error {
 	return c.JSON(http.StatusCreated, agentToResponse(agent))
 }
 
+// @Summary      Get an agent
+// @Description  Returns a specific agent owned by the authenticated developer
+// @Tags         agents
+// @Produce      json
+// @Param        id   path      string  true  "Agent ID"
+// @Success      200  {object}  dto.AgentResponse
+// @Failure      401  {object}  shared.APIError
+// @Failure      403  {object}  shared.APIError
+// @Failure      404  {object}  shared.APIError
+// @Failure      500  {object}  shared.APIError
+// @Security     BearerAuth
+// @Router       /agents/{id} [get]
 func (h *Handler) Get(c echo.Context) error {
 	developerID, err := h.requireDeveloper(c)
 	if err != nil {
@@ -167,6 +202,21 @@ func (h *Handler) Get(c echo.Context) error {
 	return c.JSON(http.StatusOK, agentToResponse(agent))
 }
 
+// @Summary      Update an agent
+// @Description  Updates an existing agent owned by the authenticated developer
+// @Tags         agents
+// @Accept       json
+// @Produce      json
+// @Param        id       path      string                  true  "Agent ID"
+// @Param        request  body      dto.UpdateAgentRequest  true  "Agent update details"
+// @Success      200      {object}  dto.AgentResponse
+// @Failure      400      {object}  shared.APIError
+// @Failure      401      {object}  shared.APIError
+// @Failure      403      {object}  shared.APIError
+// @Failure      404      {object}  shared.APIError
+// @Failure      500      {object}  shared.APIError
+// @Security     BearerAuth
+// @Router       /agents/{id} [put]
 func (h *Handler) Update(c echo.Context) error {
 	developerID, err := h.requireDeveloper(c)
 	if err != nil {
@@ -222,6 +272,17 @@ func (h *Handler) Update(c echo.Context) error {
 	return c.JSON(http.StatusOK, agentToResponse(agent))
 }
 
+// @Summary      Delete an agent
+// @Description  Deletes an agent owned by the authenticated developer
+// @Tags         agents
+// @Param        id   path  string  true  "Agent ID"
+// @Success      204  "No Content"
+// @Failure      401  {object}  shared.APIError
+// @Failure      403  {object}  shared.APIError
+// @Failure      404  {object}  shared.APIError
+// @Failure      500  {object}  shared.APIError
+// @Security     BearerAuth
+// @Router       /agents/{id} [delete]
 func (h *Handler) Delete(c echo.Context) error {
 	developerID, err := h.requireDeveloper(c)
 	if err != nil {
@@ -253,6 +314,18 @@ func (h *Handler) Delete(c echo.Context) error {
 	return c.NoContent(http.StatusNoContent)
 }
 
+// @Summary      Publish an agent
+// @Description  Makes an agent publicly available in the marketplace
+// @Tags         agents
+// @Produce      json
+// @Param        id   path      string  true  "Agent ID"
+// @Success      200  {object}  dto.AgentResponse
+// @Failure      401  {object}  shared.APIError
+// @Failure      403  {object}  shared.APIError
+// @Failure      404  {object}  shared.APIError
+// @Failure      500  {object}  shared.APIError
+// @Security     BearerAuth
+// @Router       /agents/{id}/publish [post]
 func (h *Handler) Publish(c echo.Context) error {
 	developerID, err := h.requireDeveloper(c)
 	if err != nil {
@@ -280,6 +353,21 @@ func (h *Handler) Publish(c echo.Context) error {
 	return c.JSON(http.StatusOK, agentToResponse(agent))
 }
 
+// @Summary      Reply to a review
+// @Description  Adds a developer reply to a review on their agent
+// @Tags         agents
+// @Accept       json
+// @Param        id         path  string                    true  "Agent ID"
+// @Param        review_id  path  string                    true  "Review ID"
+// @Param        request    body  dto.ReplyToReviewRequest  true  "Reply content"
+// @Success      204  "No Content"
+// @Failure      400  {object}  shared.APIError
+// @Failure      401  {object}  shared.APIError
+// @Failure      403  {object}  shared.APIError
+// @Failure      404  {object}  shared.APIError
+// @Failure      500  {object}  shared.APIError
+// @Security     BearerAuth
+// @Router       /agents/{id}/reviews/{review_id}/reply [post]
 func (h *Handler) ReplyToReview(c echo.Context) error {
 	developerID, err := h.requireDeveloper(c)
 	if err != nil {

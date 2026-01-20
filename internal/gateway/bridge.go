@@ -19,9 +19,9 @@ const (
 	agentRequestChannel   = "agent:%s:requests"
 	sessionResponsePrefix = "session:%s:responses"
 
-	sessionSubTTL      = 30 * time.Minute
-	cleanupInterval    = 5 * time.Minute
-	maxSessionSubs     = 10000
+	sessionSubTTL   = 30 * time.Minute
+	cleanupInterval = 5 * time.Minute
+	maxSessionSubs  = 10000
 )
 
 type sessionSub struct {
@@ -38,9 +38,9 @@ type Bridge struct {
 	mu              sync.RWMutex
 	responseHandler func(sessionID string, msg *transport.AgentMessage)
 
-	ctx        context.Context
-	cancel     context.CancelFunc
-	cleanupWg  sync.WaitGroup
+	ctx       context.Context
+	cancel    context.CancelFunc
+	cleanupWg sync.WaitGroup
 }
 
 func NewBridge(redisClient *redis.Client, logger *slog.Logger) *Bridge {
@@ -163,6 +163,12 @@ func (b *Bridge) IsOnline(agentID string) bool {
 	return ok
 }
 
+type ConnectedAgent struct {
+	AgentID string `json:"agent_id"`
+	OwnerID string `json:"owner_id"`
+	Online  bool   `json:"online"`
+}
+
 func (b *Bridge) ListAgents() []AgentInfo {
 	b.mu.RLock()
 	defer b.mu.RUnlock()
@@ -177,6 +183,34 @@ func (b *Bridge) ListAgents() []AgentInfo {
 		}
 	}
 	return agents
+}
+
+func (b *Bridge) ListConnectedAgents() []ConnectedAgent {
+	b.mu.RLock()
+	defer b.mu.RUnlock()
+
+	agents := make([]ConnectedAgent, 0, len(b.agentConns))
+	for agentID, conn := range b.agentConns {
+		agents = append(agents, ConnectedAgent{
+			AgentID: agentID,
+			OwnerID: conn.UserID(),
+			Online:  conn.IsOnline(),
+		})
+	}
+	return agents
+}
+
+func (b *Bridge) AgentCount() (total, online int) {
+	b.mu.RLock()
+	defer b.mu.RUnlock()
+
+	total = len(b.agentConns)
+	for _, conn := range b.agentConns {
+		if conn.IsOnline() {
+			online++
+		}
+	}
+	return
 }
 
 func (b *Bridge) PublishUtterance(ctx context.Context, msg *transport.AgentMessage) error {

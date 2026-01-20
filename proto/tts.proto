@@ -9,7 +9,7 @@ message TtsSessionConfig {
   string model_id = 4;
   string instructions = 5;
   string language = 6;
-  string response_format = 7; // pcm/opus
+  string response_format = 7; // pcm, opus, mp3 (streaming) | wav, flac (batch)
 }
 
 message ListVoicesRequest {}

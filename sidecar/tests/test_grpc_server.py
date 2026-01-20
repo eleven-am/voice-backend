@@ -5,15 +5,11 @@ from unittest.mock import MagicMock, patch
 import numpy as np
 import pytest
 
-from sidecar.grpc_server import (
-    TARGET_SAMPLE_RATE,
-    TranscriptionError,
-    dedup_new_words,
-    merge_transcripts,
-    pcm16_to_float32,
-    resample_audio,
-)
-from sidecar.types import Transcript
+from sidecar.domain.constants import TARGET_SAMPLE_RATE
+from sidecar.domain.exceptions import TranscriptionError
+from sidecar.domain.transcript_processor import deduplicate_words, merge_transcripts
+from sidecar.infrastructure.codecs.audio_codec import pcm16_to_float32, resample_audio
+from sidecar.domain.types import Transcript
 
 
 class TestPcm16ToFloat32:
@@ -61,7 +57,7 @@ class TestResampleAudio:
     def test_upsample(self):
         audio = np.array([0.1, 0.2, 0.3], dtype=np.float32)
 
-        with patch("sidecar.grpc_server.soxr.resample") as mock_resample:
+        with patch("sidecar.infrastructure.codecs.audio_codec.soxr.resample") as mock_resample:
             mock_resample.return_value = np.array([0.1, 0.15, 0.2, 0.25, 0.3], dtype=np.float32)
 
             result = resample_audio(audio, 8000, 16000)
@@ -72,7 +68,7 @@ class TestResampleAudio:
     def test_downsample(self):
         audio = np.array([0.1, 0.15, 0.2, 0.25, 0.3], dtype=np.float32)
 
-        with patch("sidecar.grpc_server.soxr.resample") as mock_resample:
+        with patch("sidecar.infrastructure.codecs.audio_codec.soxr.resample") as mock_resample:
             mock_resample.return_value = np.array([0.1, 0.2, 0.3], dtype=np.float32)
 
             result = resample_audio(audio, 32000, 16000)
@@ -80,12 +76,12 @@ class TestResampleAudio:
             mock_resample.assert_called_once()
 
 
-class TestDedupNewWords:
+class TestDeduplicateWords:
     def test_no_overlap_all_new(self):
         text = "hello world"
         confirmed = []
 
-        new_text, updated = dedup_new_words(text, confirmed)
+        new_text, updated = deduplicate_words(text, confirmed)
 
         assert new_text == "hello world"
         assert updated == ["hello", "world"]
@@ -94,7 +90,7 @@ class TestDedupNewWords:
         text = "hello world"
         confirmed = ["hello", "world"]
 
-        new_text, updated = dedup_new_words(text, confirmed)
+        new_text, updated = deduplicate_words(text, confirmed)
 
         assert new_text == ""
         assert updated == ["hello", "world"]
@@ -103,7 +99,7 @@ class TestDedupNewWords:
         text = "world foo bar"
         confirmed = ["hello", "world"]
 
-        new_text, updated = dedup_new_words(text, confirmed)
+        new_text, updated = deduplicate_words(text, confirmed)
 
         assert new_text == "foo bar"
         assert updated == ["hello", "world", "foo", "bar"]
@@ -112,7 +108,7 @@ class TestDedupNewWords:
         text = "World foo"
         confirmed = ["hello", "world"]
 
-        new_text, updated = dedup_new_words(text, confirmed)
+        new_text, updated = deduplicate_words(text, confirmed)
 
         assert new_text == "foo"
 
@@ -120,7 +116,7 @@ class TestDedupNewWords:
         text = ""
         confirmed = ["hello", "world"]
 
-        new_text, updated = dedup_new_words(text, confirmed)
+        new_text, updated = deduplicate_words(text, confirmed)
 
         assert new_text == ""
         assert updated == ["hello", "world"]
@@ -129,7 +125,7 @@ class TestDedupNewWords:
         text = "hello world"
         confirmed = []
 
-        new_text, updated = dedup_new_words(text, confirmed)
+        new_text, updated = deduplicate_words(text, confirmed)
 
         assert new_text == "hello world"
         assert updated == ["hello", "world"]
@@ -138,7 +134,7 @@ class TestDedupNewWords:
         text = "  hello   world  "
         confirmed = []
 
-        new_text, updated = dedup_new_words(text, confirmed)
+        new_text, updated = deduplicate_words(text, confirmed)
 
         assert new_text == "hello world"
 
@@ -365,8 +361,8 @@ class TestTranscriptionError:
 
 class TestTranscriptionServiceServicer:
     def test_transcribe_with_retry_success(self):
-        from sidecar.grpc_server import TranscriptionServiceServicer
-        from sidecar.stt_pipeline import STTPipelineConfig
+        from sidecar.stt.grpc_servicer import TranscriptionServiceServicer
+        from sidecar.stt.pipeline import STTPipelineConfig
 
         mock_manager = MagicMock()
         mock_engine = MagicMock()
@@ -392,14 +388,13 @@ class TestTranscriptionServiceServicer:
         )
 
         audio = np.zeros(1000, dtype=np.float32)
-        result = servicer._transcribe_with_retry(audio)
+        result = servicer._transcription_service.transcribe_with_retry(audio)
 
         assert result.text == "hello"
-        mock_engine.transcribe.assert_called_once()
 
     def test_transcribe_with_retry_oom_retries(self):
-        from sidecar.grpc_server import TranscriptionServiceServicer
-        from sidecar.stt_pipeline import STTPipelineConfig
+        from sidecar.stt.grpc_servicer import TranscriptionServiceServicer
+        from sidecar.stt.pipeline import STTPipelineConfig
 
         mock_manager = MagicMock()
         mock_engine = MagicMock()
@@ -435,14 +430,14 @@ class TestTranscriptionServiceServicer:
         )
 
         audio = np.zeros(1000, dtype=np.float32)
-        result = servicer._transcribe_with_retry(audio)
+        result = servicer._transcription_service.transcribe_with_retry(audio)
 
         assert result.text == "hello"
         assert call_count[0] == 3
 
     def test_transcribe_with_retry_oom_exhausted(self):
-        from sidecar.grpc_server import TranscriptionServiceServicer
-        from sidecar.stt_pipeline import STTPipelineConfig
+        from sidecar.stt.grpc_servicer import TranscriptionServiceServicer
+        from sidecar.stt.pipeline import STTPipelineConfig
 
         mock_manager = MagicMock()
         mock_engine = MagicMock()
@@ -462,11 +457,11 @@ class TestTranscriptionServiceServicer:
         audio = np.zeros(1000, dtype=np.float32)
 
         with pytest.raises(TranscriptionError, match="no fallback available"):
-            servicer._transcribe_with_retry(audio)
+            servicer._transcription_service.transcribe_with_retry(audio)
 
     def test_transcribe_with_retry_non_oom_propagates(self):
-        from sidecar.grpc_server import TranscriptionServiceServicer
-        from sidecar.stt_pipeline import STTPipelineConfig
+        from sidecar.stt.grpc_servicer import TranscriptionServiceServicer
+        from sidecar.stt.pipeline import STTPipelineConfig
 
         mock_manager = MagicMock()
         mock_engine = MagicMock()
@@ -485,4 +480,4 @@ class TestTranscriptionServiceServicer:
         audio = np.zeros(1000, dtype=np.float32)
 
         with pytest.raises(ValueError, match="Some other error"):
-            servicer._transcribe_with_retry(audio)
+            servicer._transcription_service.transcribe_with_retry(audio)

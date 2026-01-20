@@ -6,9 +6,15 @@ import (
 	"log/slog"
 	"sync"
 
-	"github.com/eleven-am/voice-backend/internal/audio"
 	"github.com/eleven-am/voice-backend/internal/transport"
 	"github.com/pion/webrtc/v4"
+)
+
+const (
+	SampleRate    = 48000
+	Channels      = 1
+	FrameDuration = 20
+	FrameSize     = SampleRate * FrameDuration / 1000
 )
 
 type Conn struct {
@@ -16,7 +22,6 @@ type Conn struct {
 	peer        *Peer
 	dataChannel *webrtc.DataChannel
 	output      *OutputWorker
-	codec       *OpusCodec
 	log         *slog.Logger
 
 	messages  chan transport.ClientEnvelope
@@ -37,11 +42,6 @@ func NewConn(peer *Peer, cfg Config, log *slog.Logger) (*Conn, error) {
 		log = slog.Default()
 	}
 
-	codec, err := NewOpusCodec()
-	if err != nil {
-		return nil, err
-	}
-
 	bufSize := cfg.BufferSizes.AudioFrames
 	if bufSize <= 0 {
 		bufSize = 128
@@ -55,7 +55,6 @@ func NewConn(peer *Peer, cfg Config, log *slog.Logger) (*Conn, error) {
 	c := &Conn{
 		cfg:      cfg,
 		peer:     peer,
-		codec:    codec,
 		log:      log,
 		messages: make(chan transport.ClientEnvelope, eventBufSize),
 		audioIn:  make(chan []byte, bufSize),
@@ -208,38 +207,12 @@ func (c *Conn) SendAudio(ctx context.Context, chunk transport.AudioChunk) error 
 		return nil
 	}
 
-	samples := audio.PCMBytesToInt16(chunk.Data)
-	if len(samples) == 0 {
+	if chunk.Format != "opus" {
+		c.log.Warn("received non-opus audio, expected opus", "format", chunk.Format)
 		return nil
 	}
 
-	inputRate := int(chunk.SampleRate)
-	switch inputRate {
-	case 8000, 16000, 22050, 24000, 44100, 48000:
-	case 0:
-		inputRate = 24000
-	default:
-		c.log.Warn("unexpected TTS sample rate, using 24kHz", "rate", inputRate)
-		inputRate = 24000
-	}
-
-	if inputRate != SampleRate {
-		samples = audio.ResampleInt16(samples, inputRate, SampleRate)
-	}
-
-	for i := 0; i+FrameSize <= len(samples); i += FrameSize {
-		frame := samples[i : i+FrameSize]
-		opusData, err := c.codec.Encode(frame)
-		if err != nil {
-			c.log.Error("opus encode failed", "error", err)
-			continue
-		}
-		if err := c.output.Enqueue(opusData, FrameSize); err != nil {
-			return err
-		}
-	}
-
-	return nil
+	return c.output.Enqueue(chunk.Data, FrameSize)
 }
 
 func (c *Conn) Messages() <-chan transport.ClientEnvelope {

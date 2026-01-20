@@ -20,6 +20,8 @@ type reconnectState int
 const (
 	reconnectIdle reconnectState = iota
 	reconnectInProgress
+
+	defaultMaxMessageSize = 512 * 1024 * 1024
 )
 
 type Client struct {
@@ -39,6 +41,7 @@ type Client struct {
 	backoff        BackoffConfig
 	reconnectState reconnectState
 	reconnectCh    chan error
+	maxMessageSize int
 }
 
 func New(cfg Config, opts SessionOptions, cb Callbacks) (*Client, error) {
@@ -49,6 +52,11 @@ func New(cfg Config, opts SessionOptions, cb Callbacks) (*Client, error) {
 		creds = grpc.WithTransportCredentials(cfg.TLSCreds)
 	} else {
 		creds = grpc.WithTransportCredentials(insecure.NewCredentials())
+	}
+
+	maxMsgSize := cfg.MaxMessageSize
+	if maxMsgSize <= 0 {
+		maxMsgSize = defaultMaxMessageSize
 	}
 
 	c := &Client{
@@ -64,6 +72,7 @@ func New(cfg Config, opts SessionOptions, cb Callbacks) (*Client, error) {
 		backoff:        normalizeBackoff(cfg.Backoff),
 		reconnectState: reconnectIdle,
 		reconnectCh:    make(chan error, 1),
+		maxMessageSize: maxMsgSize,
 	}
 
 	if err := c.connectAndStart(); err != nil {
@@ -95,7 +104,12 @@ func (c *Client) WaitReady(ctx context.Context) bool {
 
 func (c *Client) connectAndStart() error {
 	slog.Info("STT connecting to sidecar", "address", c.addr)
-	conn, err := grpc.NewClient(c.addr, c.creds)
+	conn, err := grpc.NewClient(c.addr, c.creds,
+		grpc.WithDefaultCallOptions(
+			grpc.MaxCallRecvMsgSize(c.maxMessageSize),
+			grpc.MaxCallSendMsgSize(c.maxMessageSize),
+		),
+	)
 	if err != nil {
 		slog.Error("STT dial failed", "error", err)
 		return fmt.Errorf("dial sidecar: %w", err)

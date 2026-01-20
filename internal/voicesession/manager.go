@@ -117,6 +117,35 @@ func (m *Manager) UpdateHealth(health map[string]router.HealthMetrics) {
 	}
 }
 
+type SessionInfo struct {
+	SessionID   string `json:"session_id"`
+	UserID      string `json:"user_id"`
+	AgentID     string `json:"agent_id"`
+	SpeechState string `json:"speech_state"`
+}
+
+func (m *Manager) SessionCount() int {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	return len(m.sessions)
+}
+
+func (m *Manager) ListSessions() []SessionInfo {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+
+	sessions := make([]SessionInfo, 0, len(m.sessions))
+	for _, s := range m.sessions {
+		sessions = append(sessions, SessionInfo{
+			SessionID:   s.SessionID(),
+			UserID:      s.UserID(),
+			AgentID:     s.AgentID(),
+			SpeechState: string(s.speechCtrl.State()),
+		})
+	}
+	return sessions
+}
+
 func (m *Manager) Close() error {
 	m.mu.Lock()
 	sessions := make([]*VoiceSession, 0, len(m.sessions))

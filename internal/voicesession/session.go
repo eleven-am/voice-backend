@@ -133,6 +133,10 @@ func (s *VoiceSession) UserID() string {
 	return s.userID
 }
 
+func (s *VoiceSession) AgentID() string {
+	return s.agentID
+}
+
 func (s *VoiceSession) audioInLoop() {
 	defer s.wg.Done()
 
@@ -346,6 +350,7 @@ func (s *VoiceSession) onAgentResponse(sessionID string, msg *transport.AgentMes
 func (s *VoiceSession) synthesizeResponse(text string, cancelCh <-chan struct{}) {
 	req := synthesis.Request{
 		Text:   text,
+		Format: "opus",
 		Cancel: cancelCh,
 	}
 

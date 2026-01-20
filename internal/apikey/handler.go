@@ -72,6 +72,16 @@ func keyToResponse(k *APIKey) dto.APIKeyResponse {
 	return resp
 }
 
+// @Summary      List API keys
+// @Description  Returns all API keys owned by the authenticated developer
+// @Tags         apikeys
+// @Produce      json
+// @Success      200  {object}  dto.APIKeyListResponse
+// @Failure      401  {object}  shared.APIError
+// @Failure      403  {object}  shared.APIError
+// @Failure      500  {object}  shared.APIError
+// @Security     BearerAuth
+// @Router       /apikeys [get]
 func (h *Handler) List(c echo.Context) error {
 	userID, err := h.requireDeveloper(c)
 	if err != nil {
@@ -92,6 +102,19 @@ func (h *Handler) List(c echo.Context) error {
 	return c.JSON(http.StatusOK, dto.APIKeyListResponse{APIKeys: response})
 }
 
+// @Summary      Create an API key
+// @Description  Creates a new API key for the authenticated developer
+// @Tags         apikeys
+// @Accept       json
+// @Produce      json
+// @Param        request  body      dto.CreateAPIKeyRequest  true  "API key details"
+// @Success      201      {object}  dto.CreateAPIKeyResponse
+// @Failure      400      {object}  shared.APIError
+// @Failure      401      {object}  shared.APIError
+// @Failure      403      {object}  shared.APIError
+// @Failure      500      {object}  shared.APIError
+// @Security     BearerAuth
+// @Router       /apikeys [post]
 func (h *Handler) Create(c echo.Context) error {
 	userID, err := h.requireDeveloper(c)
 	if err != nil {
@@ -136,6 +159,17 @@ func (h *Handler) Create(c echo.Context) error {
 	})
 }
 
+// @Summary      Delete an API key
+// @Description  Deletes an API key owned by the authenticated developer
+// @Tags         apikeys
+// @Param        id  path  string  true  "API Key ID"
+// @Success      204  "No Content"
+// @Failure      401  {object}  shared.APIError
+// @Failure      403  {object}  shared.APIError
+// @Failure      404  {object}  shared.APIError
+// @Failure      500  {object}  shared.APIError
+// @Security     BearerAuth
+// @Router       /apikeys/{id} [delete]
 func (h *Handler) Delete(c echo.Context) error {
 	userID, err := h.requireDeveloper(c)
 	if err != nil {

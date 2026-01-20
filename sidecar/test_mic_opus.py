@@ -5,7 +5,7 @@ import numpy as np
 import opuslib
 import sounddevice as sd
 
-from sidecar import stt_pb2, stt_pb2_grpc
+from sidecar.stt import pb2 as stt_pb2, pb2_grpc as stt_pb2_grpc
 
 SAMPLE_RATE = 48000
 CHANNELS = 1
