@@ -202,3 +202,92 @@ func TestConfig_BufferSizes(t *testing.T) {
 		t.Errorf("expected ICECandidates 32, got %d", mgr.cfg.BufferSizes.ICECandidates)
 	}
 }
+
+func TestManager_CreateSession(t *testing.T) {
+	mgr, _ := NewManager(Config{})
+	session := mgr.CreateSession(nil, "user-123")
+	if session == nil {
+		t.Fatal("CreateSession should not return nil")
+	}
+	if session.ID == "" {
+		t.Error("session should have an ID")
+	}
+	if session.UserID() != "user-123" {
+		t.Errorf("expected userID 'user-123', got %s", session.UserID())
+	}
+
+	found, ok := mgr.GetSession(session.ID)
+	if !ok {
+		t.Error("should find the created session")
+	}
+	if found != session {
+		t.Error("found session should be the same instance")
+	}
+}
+
+func TestManager_CreateSession_CustomICEBuffer(t *testing.T) {
+	mgr, _ := NewManager(Config{
+		BufferSizes: BufferSizes{ICECandidates: 64},
+	})
+	session := mgr.CreateSession(nil, "user")
+	if cap(session.iceCh) != 64 {
+		t.Errorf("expected ICE buffer size 64, got %d", cap(session.iceCh))
+	}
+}
+
+func TestManager_CreateSession_DefaultICEBuffer(t *testing.T) {
+	mgr, _ := NewManager(Config{})
+	session := mgr.CreateSession(nil, "user")
+	if cap(session.iceCh) != 128 {
+		t.Errorf("expected default ICE buffer size 128, got %d", cap(session.iceCh))
+	}
+}
+
+
+func TestManager_CreateMultipleSessions(t *testing.T) {
+	mgr, _ := NewManager(Config{})
+	session1 := mgr.CreateSession(nil, "user1")
+	session2 := mgr.CreateSession(nil, "user2")
+
+	if session1.ID == session2.ID {
+		t.Error("session IDs should be unique")
+	}
+
+	s1, ok1 := mgr.GetSession(session1.ID)
+	s2, ok2 := mgr.GetSession(session2.ID)
+
+	if !ok1 || !ok2 {
+		t.Error("both sessions should be found")
+	}
+	if s1.UserID() != "user1" || s2.UserID() != "user2" {
+		t.Error("sessions should have correct user IDs")
+	}
+}
+
+func TestManager_NewPeer(t *testing.T) {
+	mgr, _ := NewManager(Config{})
+	peer, err := mgr.NewPeer()
+	if err != nil {
+		t.Fatalf("NewPeer should not error: %v", err)
+	}
+	if peer == nil {
+		t.Fatal("NewPeer should not return nil")
+	}
+	defer peer.Close()
+}
+
+func TestManager_NewPeer_WithICEServers(t *testing.T) {
+	mgr, _ := NewManager(Config{
+		ICEServers: []ICEServerConfig{
+			{URLs: []string{"stun:stun.example.com"}},
+		},
+	})
+	peer, err := mgr.NewPeer()
+	if err != nil {
+		t.Fatalf("NewPeer should not error: %v", err)
+	}
+	if peer == nil {
+		t.Fatal("NewPeer should not return nil")
+	}
+	defer peer.Close()
+}

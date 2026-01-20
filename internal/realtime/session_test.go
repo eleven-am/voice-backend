@@ -1,6 +1,8 @@
 package realtime
 
 import (
+	"io"
+	"log/slog"
 	"testing"
 	"time"
 
@@ -139,5 +141,46 @@ func TestSession_UniqueIDs(t *testing.T) {
 
 	if session1.ID == session2.ID {
 		t.Error("session IDs should be unique")
+	}
+}
+
+func TestSession_WithLogger(t *testing.T) {
+	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
+	session := NewSession(nil, "user", 0, logger)
+	if session.log == nil {
+		t.Error("logger should not be nil")
+	}
+}
+
+func TestSession_IDLength(t *testing.T) {
+	session := NewSession(nil, "user", 0, nil)
+	if len(session.ID) != 32 {
+		t.Errorf("expected session ID length 32 (16 bytes hex encoded), got %d", len(session.ID))
+	}
+}
+
+func TestSession_IDHexFormat(t *testing.T) {
+	session := NewSession(nil, "user", 0, nil)
+	for _, c := range session.ID {
+		if !((c >= '0' && c <= '9') || (c >= 'a' && c <= 'f')) {
+			t.Errorf("session ID should be hex encoded, got character %c", c)
+		}
+	}
+}
+
+func TestSession_MultipleICECandidates(t *testing.T) {
+	session := NewSession(nil, "user", 5, nil)
+	for i := 0; i < 5; i++ {
+		session.SendICE(webrtc.ICECandidateInit{Candidate: string(rune('a' + i))})
+	}
+
+	received := 0
+	for received < 5 {
+		select {
+		case <-session.ICECandidates():
+			received++
+		default:
+			t.Fatalf("expected 5 candidates, got %d", received)
+		}
 	}
 }
