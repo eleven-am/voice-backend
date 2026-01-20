@@ -136,8 +136,8 @@ type VoiceRouteParams struct {
 }
 
 func RegisterVoiceRoutes(e *echo.Echo, params VoiceRouteParams) {
-	params.Handler.RegisterRoutes(e.Group("/api/v1/voice"))
-	params.AudioHandler.RegisterRoutes(e.Group("/api/v1/audio"))
+	params.Handler.RegisterRoutes(e.Group("/v1/voice"))
+	params.AudioHandler.RegisterRoutes(e.Group("/v1/audio"))
 }
 
 var VoiceModule = fx.Options(

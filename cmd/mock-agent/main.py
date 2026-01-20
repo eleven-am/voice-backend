@@ -8,7 +8,7 @@ import websockets
 
 API_KEY = "sk-voice-b2733a52fbfd76e9d5d44e9bc2af2cdd62f0eae880e62c78f26e223ac1f8ae4f"
 AGENT_ID = "test-agent-001"
-WS_URL = f"ws://localhost:8080/api/v1/gateway/ws?api_key={API_KEY}&agent_id={AGENT_ID}"
+WS_URL = f"ws://localhost:8080/v1/gateway/ws?api_key={API_KEY}&agent_id={AGENT_ID}"
 
 
 async def handle_message(msg: dict) -> dict | None:

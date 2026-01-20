@@ -41,7 +41,7 @@ type HandlerParams struct {
 }
 
 func RegisterRoutes(e *echo.Echo, params HandlerParams) {
-	api := e.Group("/api/v1")
+	api := e.Group("/v1")
 
 	authGroup := api.Group("/auth")
 	authGroup.Use(params.JWTMiddleware.Authenticate)

@@ -1970,7 +1970,7 @@ const docTemplate = `{
 var SwaggerInfo = &swag.Spec{
 	Version:          "1.0.0",
 	Host:             "",
-	BasePath:         "/api/v1",
+	BasePath:         "/v1",
 	Schemes:          []string{},
 	Title:            "Voice Backend API",
 	Description:      "API server for voice agent platform",

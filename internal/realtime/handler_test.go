@@ -426,14 +426,14 @@ func TestHandler_RegisterRoutes(t *testing.T) {
 	e := echo.New()
 	mgr, _ := NewManager(Config{})
 	h := NewHandler(mgr, nil, nil, nil, nil)
-	g := e.Group("/api")
+	g := e.Group("/v1/voice")
 	h.RegisterRoutes(g)
 
 	routes := e.Routes()
 	expectedPaths := map[string]bool{
-		"/api/calls":             false,
-		"/api/calls/:session_id": false,
-		"/api/ice-servers":       false,
+		"/v1/voice/calls":             false,
+		"/v1/voice/calls/:session_id": false,
+		"/v1/voice/ice-servers":       false,
 	}
 
 	for _, r := range routes {
