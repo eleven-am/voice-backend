@@ -29,6 +29,9 @@ func corsConfig(origins []string) middleware.CORSConfig {
 			"X-Requested-With",
 			"X-CSRF-Token",
 		},
+		ExposeHeaders: []string{
+			"X-Session-Id",
+		},
 		MaxAge: 86400,
 	}
 
