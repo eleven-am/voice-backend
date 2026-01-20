@@ -1,6 +1,7 @@
 package audio
 
 import (
+	"bytes"
 	"context"
 	"fmt"
 	"io"
@@ -24,7 +25,16 @@ const (
 	maxSpeed         = 4.0
 	minSpeed         = 0.25
 	synthesisTimeout = 30 * time.Second
+	initialBufSize   = 64 * 1024
 )
+
+var audioBufferPool = sync.Pool{
+	New: func() any {
+		b := &bytes.Buffer{}
+		b.Grow(initialBufSize)
+		return b
+	},
+}
 
 type Handler struct {
 	ttsClient   *synthesis.Client
@@ -158,8 +168,11 @@ func (h *Handler) HandleSpeech(c echo.Context) error {
 	ctx, cancel := context.WithTimeout(c.Request().Context(), synthesisTimeout)
 	defer cancel()
 
+	buf := audioBufferPool.Get().(*bytes.Buffer)
+	buf.Reset()
+	defer audioBufferPool.Put(buf)
+
 	var mu sync.Mutex
-	var audioData []byte
 	var sampleRate uint32
 	var format string
 	var audioErr error
@@ -181,11 +194,11 @@ func (h *Handler) HandleSpeech(c echo.Context) error {
 		OnAudio: func(data []byte, f string, sr uint32) {
 			mu.Lock()
 			defer mu.Unlock()
-			if len(audioData)+len(data) > maxAudioDataSize {
+			if buf.Len()+len(data) > maxAudioDataSize {
 				audioErr = fmt.Errorf("audio data exceeds maximum size")
 				return
 			}
-			audioData = append(audioData, data...)
+			buf.Write(data)
 			format = f
 			if sampleRate == 0 {
 				sampleRate = sr
@@ -214,7 +227,7 @@ func (h *Handler) HandleSpeech(c echo.Context) error {
 		return shared.InternalError("synthesis_failed", audioErr.Error())
 	}
 
-	if len(audioData) == 0 {
+	if buf.Len() == 0 {
 		return shared.InternalError("synthesis_failed", "No audio data generated")
 	}
 
@@ -233,7 +246,7 @@ func (h *Handler) HandleSpeech(c echo.Context) error {
 	}
 
 	c.Response().Header().Set("Content-Type", contentType)
-	return c.Blob(http.StatusOK, contentType, audioData)
+	return c.Blob(http.StatusOK, contentType, buf.Bytes())
 }
 
 func (h *Handler) HandleTranscriptions(c echo.Context) error {

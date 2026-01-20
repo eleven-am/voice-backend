@@ -1,11 +1,6 @@
 FROM golang:1.25-alpine AS builder
 
-RUN apk add --no-cache \
-    gcc \
-    musl-dev \
-    opus-dev \
-    opusfile-dev \
-    upx
+RUN apk add --no-cache upx
 
 RUN go install github.com/swaggo/swag/cmd/swag@latest
 
@@ -18,17 +13,14 @@ COPY . .
 
 RUN swag init -g cmd/server/main.go -o docs --parseDependency --parseInternal
 
-RUN CGO_ENABLED=1 GOOS=linux go build \
+RUN CGO_ENABLED=0 GOOS=linux go build \
     -ldflags="-w -s" \
     -o /voice-backend ./cmd/server \
     && upx --best --lzma /voice-backend
 
 FROM alpine:3.21
 
-RUN apk add --no-cache \
-    ca-certificates \
-    opus \
-    opusfile \
+RUN apk add --no-cache ca-certificates \
     && adduser -D -u 1000 app
 
 COPY --from=builder /voice-backend /usr/local/bin/voice-backend

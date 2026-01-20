@@ -19,32 +19,7 @@ try:
 except ImportError:
     logger.debug("opuslib not available")
 
-_HAS_LAMEENC = False
-try:
-    import lameenc
-    _HAS_LAMEENC = True
-    logger.info("lameenc available for native MP3 encoding")
-except ImportError:
-    logger.debug("lameenc not available")
-
 OPUS_FRAME_MS = 20
-
-
-def _encode_mp3_native(pcm16: bytes, sample_rate: int, bitrate: int = 128) -> bytes:
-    if not _HAS_LAMEENC:
-        raise SynthesisError("lameenc not available for MP3 encoding", code=5)
-
-    encoder = lameenc.Encoder()
-    encoder.set_bit_rate(bitrate)
-    encoder.set_in_sample_rate(sample_rate)
-    encoder.set_channels(1)
-    encoder.set_quality(2)
-
-    samples = np.frombuffer(pcm16, dtype=np.int16)
-    mp3_data = encoder.encode(samples.tobytes())
-    mp3_data += encoder.flush()
-
-    return mp3_data
 
 
 def _encode_opus_native(pcm16: bytes, sample_rate: int) -> bytes:
@@ -88,9 +63,6 @@ def encode_audio(pcm16: bytes, sample_rate: int, fmt: str) -> tuple[bytes, str]:
     if fmt == "opus":
         return _encode_opus_native(pcm16, sample_rate), "opus"
 
-    if fmt == "mp3":
-        return _encode_mp3_native(pcm16, sample_rate), "mp3"
-
     raise SynthesisError(f"unsupported response_format: {fmt}", code=5)
 
 
@@ -116,10 +88,5 @@ async def encode_audio_async(pcm16: bytes, sample_rate: int, fmt: str) -> tuple[
         loop = asyncio.get_running_loop()
         result = await loop.run_in_executor(None, _encode_opus_native, pcm16, sample_rate)
         return result, "opus"
-
-    if fmt == "mp3":
-        loop = asyncio.get_running_loop()
-        result = await loop.run_in_executor(None, _encode_mp3_native, pcm16, sample_rate)
-        return result, "mp3"
 
     raise SynthesisError(f"unsupported response_format: {fmt}", code=5)
