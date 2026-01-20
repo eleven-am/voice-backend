@@ -70,12 +70,12 @@ class TextToSpeechServiceServicer(tts_pb2_grpc.TextToSpeechServiceServicer):
         return session_config, text_chunks, voice_id, response_format, errors
 
     def _create_audio_chunk(
-        self, data: bytes, format: str, audio_samples: int, transcript: str | None = None
+        self, data: bytes | bytearray, format: str, audio_samples: int, transcript: str | None = None
     ) -> tts_pb2.TtsServerMessage:
         sample_rate = 48000 if format == "opus" else SAMPLE_RATE
         return tts_pb2.TtsServerMessage(
             audio=tts_pb2.AudioChunk(
-                data=data,
+                data=bytes(data) if isinstance(data, bytearray) else data,
                 format=format,
                 sample_rate=sample_rate,
                 timestamp_ms=int(audio_samples * 1000 / SAMPLE_RATE),

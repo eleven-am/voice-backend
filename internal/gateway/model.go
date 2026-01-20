@@ -9,21 +9,23 @@ import (
 type MessageType = transport.MessageType
 
 const (
-	MessageTypeUtterance    = transport.MessageTypeUtterance
-	MessageTypeResponse     = transport.MessageTypeResponse
-	MessageTypeSessionStart = transport.MessageTypeSessionStart
-	MessageTypeSessionEnd   = transport.MessageTypeSessionEnd
-	MessageTypeAgentStatus  = transport.MessageTypeAgentStatus
-	MessageTypeError        = transport.MessageTypeError
-	MessageTypeVoiceStart   = transport.MessageTypeVoiceStart
-	MessageTypeVoiceEnd     = transport.MessageTypeVoiceEnd
-	MessageTypeAudioFrame   = transport.MessageTypeAudioFrame
-	MessageTypeSpeechStart  = transport.MessageTypeSpeechStart
-	MessageTypeSpeechEnd    = transport.MessageTypeSpeechEnd
-	MessageTypeTranscript   = transport.MessageTypeTranscript
-	MessageTypeTTSStart     = transport.MessageTypeTTSStart
-	MessageTypeTTSEnd       = transport.MessageTypeTTSEnd
-	MessageTypeInterrupt    = transport.MessageTypeInterrupt
+	MessageTypeUtterance     = transport.MessageTypeUtterance
+	MessageTypeResponse      = transport.MessageTypeResponse
+	MessageTypeSessionStart  = transport.MessageTypeSessionStart
+	MessageTypeSessionEnd    = transport.MessageTypeSessionEnd
+	MessageTypeAgentStatus   = transport.MessageTypeAgentStatus
+	MessageTypeError         = transport.MessageTypeError
+	MessageTypeVoiceStart    = transport.MessageTypeVoiceStart
+	MessageTypeVoiceEnd      = transport.MessageTypeVoiceEnd
+	MessageTypeAudioFrame    = transport.MessageTypeAudioFrame
+	MessageTypeSpeechStart   = transport.MessageTypeSpeechStart
+	MessageTypeSpeechEnd     = transport.MessageTypeSpeechEnd
+	MessageTypeTranscript    = transport.MessageTypeTranscript
+	MessageTypeTTSStart      = transport.MessageTypeTTSStart
+	MessageTypeTTSEnd        = transport.MessageTypeTTSEnd
+	MessageTypeInterrupt     = transport.MessageTypeInterrupt
+	MessageTypeFrameRequest  = transport.MessageTypeFrameRequest
+	MessageTypeFrameResponse = transport.MessageTypeFrameResponse
 )
 
 type GatewayMessage = transport.AgentMessage

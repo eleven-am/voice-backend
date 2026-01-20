@@ -14,13 +14,16 @@ type Peer struct {
 	pc         *webrtc.PeerConnection
 	audioTrack *webrtc.TrackLocalStaticRTP
 
-	mu          sync.RWMutex
-	seq         uint16
-	timestamp   uint32
-	ssrc        uint32
-	onAudio     func([]byte)
-	onConnected func()
-	onFailed    func()
+	mu             sync.RWMutex
+	seq            uint16
+	timestamp      uint32
+	ssrc           uint32
+	onAudio        func([]byte)
+	onVideo        func([]byte, string)
+	onConnected    func()
+	onFailed       func()
+	videoTrack     *webrtc.TrackRemote
+	videoTrackKind string
 }
 
 func NewPeer(pc *webrtc.PeerConnection) (*Peer, error) {
@@ -51,10 +54,12 @@ func NewPeer(pc *webrtc.PeerConnection) (*Peer, error) {
 
 	pc.OnTrack(func(remoteTrack *webrtc.TrackRemote, _ *webrtc.RTPReceiver) {
 		codec := remoteTrack.Codec()
-		log.Printf("OnTrack received: kind=%s codec=%s channels=%d rate=%d fmtp=%s",
-			remoteTrack.Kind().String(), codec.MimeType, codec.Channels, codec.ClockRate, codec.SDPFmtpLine)
+		log.Printf("OnTrack received: kind=%s codec=%s channels=%d rate=%d fmtp=%s streamID=%s",
+			remoteTrack.Kind().String(), codec.MimeType, codec.Channels, codec.ClockRate, codec.SDPFmtpLine, remoteTrack.StreamID())
 		if remoteTrack.Kind() == webrtc.RTPCodecTypeAudio {
 			go p.readIncomingAudio(remoteTrack)
+		} else if remoteTrack.Kind() == webrtc.RTPCodecTypeVideo {
+			p.handleVideoTrack(remoteTrack)
 		}
 	})
 
@@ -77,6 +82,62 @@ func NewPeer(pc *webrtc.PeerConnection) (*Peer, error) {
 	})
 
 	return p, nil
+}
+
+func (p *Peer) handleVideoTrack(track *webrtc.TrackRemote) {
+	streamID := track.StreamID()
+	isScreenShare := streamID == "screen" || streamID == "display" || streamID == "screenshare"
+
+	p.mu.Lock()
+	currentKind := p.videoTrackKind
+	shouldReplace := p.videoTrack == nil ||
+		(isScreenShare && currentKind != "screen") ||
+		(!isScreenShare && currentKind == "")
+
+	if shouldReplace {
+		p.videoTrack = track
+		if isScreenShare {
+			p.videoTrackKind = "screen"
+		} else {
+			p.videoTrackKind = "camera"
+		}
+		log.Printf("Video track selected: kind=%s streamID=%s", p.videoTrackKind, streamID)
+		p.mu.Unlock()
+		go p.readIncomingVideo(track)
+	} else {
+		p.mu.Unlock()
+		log.Printf("Video track ignored (preferring %s): streamID=%s", currentKind, streamID)
+	}
+}
+
+func (p *Peer) readIncomingVideo(track *webrtc.TrackRemote) {
+	log.Printf("readIncomingVideo started for %s", track.StreamID())
+	buf := make([]byte, 65535)
+	packetCount := 0
+
+	for {
+		n, _, err := track.Read(buf)
+		if err != nil {
+			log.Printf("readIncomingVideo error: %v", err)
+			return
+		}
+
+		packetCount++
+		if packetCount <= 5 || packetCount%500 == 0 {
+			log.Printf("readIncomingVideo: received packet %d, size=%d", packetCount, n)
+		}
+
+		p.mu.RLock()
+		cb := p.onVideo
+		p.mu.RUnlock()
+
+		if cb != nil {
+			pkt := &rtp.Packet{}
+			if err := pkt.Unmarshal(buf[:n]); err == nil {
+				cb(pkt.Payload, track.Codec().MimeType)
+			}
+		}
+	}
 }
 
 func (p *Peer) readIncomingAudio(track *webrtc.TrackRemote) {
@@ -165,6 +226,18 @@ func (p *Peer) OnAudio(fn func([]byte)) {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 	p.onAudio = fn
+}
+
+func (p *Peer) OnVideo(fn func([]byte, string)) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	p.onVideo = fn
+}
+
+func (p *Peer) HasVideoTrack() bool {
+	p.mu.RLock()
+	defer p.mu.RUnlock()
+	return p.videoTrack != nil
 }
 
 func (p *Peer) OnConnected(fn func()) {

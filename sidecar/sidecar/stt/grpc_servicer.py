@@ -96,7 +96,7 @@ class TranscriptionServiceServicer(stt_pb2_grpc.TranscriptionServiceServicer):
         partial_service: PartialTranscriptService | None = None
 
         async for client_msg in request_iterator:
-            if context and not context.is_active():
+            if context and context.cancelled():
                 logger.info("Client cancelled, stopping transcription")
                 break
 

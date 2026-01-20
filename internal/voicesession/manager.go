@@ -6,6 +6,7 @@ import (
 
 	"github.com/eleven-am/voice-backend/internal/router"
 	"github.com/eleven-am/voice-backend/internal/transport"
+	"github.com/eleven-am/voice-backend/internal/vision"
 )
 
 type Manager struct {
@@ -18,15 +19,20 @@ type Manager struct {
 	defaultSTTConfig Config
 	defaultTTSConfig Config
 	defaultAgents    []router.AgentInfo
+
+	visionAnalyzer *vision.Analyzer
+	visionStore    *vision.Store
 }
 
 type ManagerConfig struct {
-	Bridge    transport.Bridge
-	Router    router.Router
-	STTConfig Config
-	TTSConfig Config
-	Agents    []router.AgentInfo
-	Log       *slog.Logger
+	Bridge         transport.Bridge
+	Router         router.Router
+	STTConfig      Config
+	TTSConfig      Config
+	Agents         []router.AgentInfo
+	Log            *slog.Logger
+	VisionAnalyzer *vision.Analyzer
+	VisionStore    *vision.Store
 }
 
 func NewManager(cfg ManagerConfig) *Manager {
@@ -49,6 +55,8 @@ func NewManager(cfg ManagerConfig) *Manager {
 		defaultSTTConfig: cfg.STTConfig,
 		defaultTTSConfig: cfg.TTSConfig,
 		defaultAgents:    cfg.Agents,
+		visionAnalyzer:   cfg.VisionAnalyzer,
+		visionStore:      cfg.VisionStore,
 	}
 }
 
@@ -63,6 +71,13 @@ func (m *Manager) CreateSession(conn transport.Connection, userCtx *transport.Us
 
 	if len(cfg.Agents) == 0 {
 		cfg.Agents = m.defaultAgents
+	}
+
+	if cfg.VisionAnalyzer == nil && m.visionAnalyzer != nil {
+		cfg.VisionAnalyzer = m.visionAnalyzer
+	}
+	if cfg.VisionStore == nil && m.visionStore != nil {
+		cfg.VisionStore = m.visionStore
 	}
 
 	session, err := New(conn, m.bridge, cfg, m.log)

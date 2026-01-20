@@ -112,3 +112,39 @@ func TestManager_Close_MultipleTimes(t *testing.T) {
 		t.Errorf("second Close should not error: %v", err)
 	}
 }
+
+func TestManager_SessionCount_Empty(t *testing.T) {
+	mgr := NewManager(ManagerConfig{})
+	if mgr.SessionCount() != 0 {
+		t.Errorf("expected 0 sessions, got %d", mgr.SessionCount())
+	}
+}
+
+func TestManager_ListSessions_Empty(t *testing.T) {
+	mgr := NewManager(ManagerConfig{})
+	sessions := mgr.ListSessions()
+	if len(sessions) != 0 {
+		t.Errorf("expected 0 sessions, got %d", len(sessions))
+	}
+}
+
+func TestManager_RemoveSession_ExistingSession(t *testing.T) {
+	mgr := NewManager(ManagerConfig{})
+	mgr.RemoveSession("nonexistent")
+	if mgr.SessionCount() != 0 {
+		t.Errorf("expected 0 sessions after removing nonexistent")
+	}
+}
+
+func TestManager_VisionComponents(t *testing.T) {
+	mgr := NewManager(ManagerConfig{
+		VisionAnalyzer: nil,
+		VisionStore:    nil,
+	})
+	if mgr.visionAnalyzer != nil {
+		t.Error("visionAnalyzer should be nil")
+	}
+	if mgr.visionStore != nil {
+		t.Error("visionStore should be nil")
+	}
+}

@@ -34,7 +34,8 @@ type Conn struct {
 	paused     bool
 	ttsStopped bool
 
-	bpCb transport.BackpressureCallback
+	bpCb    transport.BackpressureCallback
+	onVideo func([]byte, string)
 }
 
 func NewConn(peer *Peer, cfg Config, log *slog.Logger) (*Conn, error) {
@@ -85,6 +86,15 @@ func NewConn(peer *Peer, cfg Config, log *slog.Logger) (*Conn, error) {
 
 	peer.OnFailed(func() {
 		c.Close()
+	})
+
+	peer.OnVideo(func(payload []byte, mimeType string) {
+		c.mu.RLock()
+		cb := c.onVideo
+		c.mu.RUnlock()
+		if cb != nil {
+			cb(payload, mimeType)
+		}
 	})
 
 	return c, nil
@@ -282,4 +292,14 @@ func (c *Conn) StopTTS() {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	c.ttsStopped = true
+}
+
+func (c *Conn) OnVideo(fn func([]byte, string)) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.onVideo = fn
+}
+
+func (c *Conn) HasVideo() bool {
+	return c.peer.HasVideoTrack()
 }

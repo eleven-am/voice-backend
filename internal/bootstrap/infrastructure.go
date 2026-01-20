@@ -1,6 +1,9 @@
 package bootstrap
 
 import (
+	"time"
+
+	"github.com/eleven-am/voice-backend/internal/vision"
 	"github.com/qdrant/go-client/qdrant"
 	"github.com/redis/go-redis/v9"
 	"go.uber.org/fx"
@@ -31,10 +34,40 @@ func ProvideQdrantClient(cfg *Config) (*qdrant.Client, error) {
 	})
 }
 
+type VisionComponents struct {
+	Client   *vision.Client
+	Store    *vision.Store
+	Analyzer *vision.Analyzer
+}
+
+func ProvideVisionComponents(cfg *Config, redisClient *redis.Client) *VisionComponents {
+	if !cfg.VisionEnabled || cfg.VisionOllamaURL == "" {
+		return nil
+	}
+
+	visionCfg := vision.Config{
+		OllamaURL: cfg.VisionOllamaURL,
+		Model:     cfg.VisionModel,
+		Timeout:   30 * time.Second,
+		FrameTTL:  60 * time.Second,
+	}
+
+	client := vision.NewClient(visionCfg)
+	store := vision.NewStore(redisClient, 60*time.Second)
+	analyzer := vision.NewAnalyzer(client, store, nil)
+
+	return &VisionComponents{
+		Client:   client,
+		Store:    store,
+		Analyzer: analyzer,
+	}
+}
+
 var InfrastructureModule = fx.Options(
 	fx.Provide(
 		ProvideRedisClient,
 		ProvideDatabase,
 		ProvideQdrantClient,
+		ProvideVisionComponents,
 	),
 )

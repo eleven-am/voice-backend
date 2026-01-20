@@ -52,6 +52,7 @@ const (
 	ScopeRealtime    Scope = "realtime"
 	ScopeHistory     Scope = "history"
 	ScopePreferences Scope = "preferences"
+	ScopeVision      Scope = "vision"
 )
 
 func (s Scope) String() string {

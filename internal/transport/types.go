@@ -9,21 +9,23 @@ import (
 type MessageType string
 
 const (
-	MessageTypeUtterance    MessageType = "utterance"
-	MessageTypeResponse     MessageType = "response"
-	MessageTypeSessionStart MessageType = "session_start"
-	MessageTypeSessionEnd   MessageType = "session_end"
-	MessageTypeAgentStatus  MessageType = "agent_status"
-	MessageTypeError        MessageType = "error"
-	MessageTypeVoiceStart   MessageType = "voice_start"
-	MessageTypeVoiceEnd     MessageType = "voice_end"
-	MessageTypeAudioFrame   MessageType = "audio_frame"
-	MessageTypeSpeechStart  MessageType = "speech_start"
-	MessageTypeSpeechEnd    MessageType = "speech_end"
-	MessageTypeTranscript   MessageType = "transcript"
-	MessageTypeTTSStart     MessageType = "tts_start"
-	MessageTypeTTSEnd       MessageType = "tts_end"
-	MessageTypeInterrupt    MessageType = "interrupt"
+	MessageTypeUtterance     MessageType = "utterance"
+	MessageTypeResponse      MessageType = "response"
+	MessageTypeSessionStart  MessageType = "session_start"
+	MessageTypeSessionEnd    MessageType = "session_end"
+	MessageTypeAgentStatus   MessageType = "agent_status"
+	MessageTypeError         MessageType = "error"
+	MessageTypeVoiceStart    MessageType = "voice_start"
+	MessageTypeVoiceEnd      MessageType = "voice_end"
+	MessageTypeAudioFrame    MessageType = "audio_frame"
+	MessageTypeSpeechStart   MessageType = "speech_start"
+	MessageTypeSpeechEnd     MessageType = "speech_end"
+	MessageTypeTranscript    MessageType = "transcript"
+	MessageTypeTTSStart      MessageType = "tts_start"
+	MessageTypeTTSEnd        MessageType = "tts_end"
+	MessageTypeInterrupt     MessageType = "interrupt"
+	MessageTypeFrameRequest  MessageType = "frame_request"
+	MessageTypeFrameResponse MessageType = "frame_response"
 )
 
 type AgentMessage struct {
@@ -38,8 +40,15 @@ type AgentMessage struct {
 }
 
 type UtterancePayload struct {
-	Text    string `json:"text"`
-	IsFinal bool   `json:"is_final"`
+	Text    string         `json:"text"`
+	IsFinal bool           `json:"is_final"`
+	Vision  *VisionContext `json:"vision,omitempty"`
+}
+
+type VisionContext struct {
+	Description string `json:"description,omitempty"`
+	Timestamp   int64  `json:"timestamp,omitempty"`
+	Available   bool   `json:"available"`
 }
 
 type ResponsePayload struct {
@@ -51,6 +60,7 @@ type Bridge interface {
 	PublishUtterance(ctx context.Context, msg *AgentMessage) error
 	PublishToAgents(ctx context.Context, agentIDs []string, msg *AgentMessage) error
 	PublishCancellation(ctx context.Context, agentID, sessionID, reason string) error
+	PublishResponse(ctx context.Context, msg *AgentMessage) error
 	SubscribeToSession(sessionID string) error
 	UnsubscribeFromSession(sessionID string)
 	SetResponseHandler(handler func(sessionID string, msg *AgentMessage))
@@ -124,4 +134,22 @@ type PartialTranscriptEvent struct {
 type AgentCancelledEvent struct {
 	AgentID string
 	Reason  string
+}
+
+type FrameRequestPayload struct {
+	StartTime int64 `json:"start_time"`
+	EndTime   int64 `json:"end_time"`
+	Limit     int   `json:"limit"`
+	RawBase64 bool  `json:"raw_base64"`
+}
+
+type FrameResponsePayload struct {
+	Frames       []FrameData `json:"frames,omitempty"`
+	Descriptions []string    `json:"descriptions,omitempty"`
+	Error        string      `json:"error,omitempty"`
+}
+
+type FrameData struct {
+	Timestamp int64  `json:"timestamp"`
+	Base64    string `json:"base64,omitempty"`
 }

@@ -10,6 +10,7 @@ import (
 	"github.com/eleven-am/voice-backend/internal/synthesis"
 	"github.com/eleven-am/voice-backend/internal/transcription"
 	"github.com/eleven-am/voice-backend/internal/transport"
+	"github.com/eleven-am/voice-backend/internal/vision"
 	"github.com/google/uuid"
 )
 
@@ -37,22 +38,32 @@ type VoiceSession struct {
 	agents       []router.AgentInfo
 	activeAgents []string
 	agentMu      sync.Mutex
+
+	visionAnalyzer *vision.Analyzer
+	frameCapturer  *vision.FrameCapturer
 }
 
 type Config struct {
-	AgentID       string
-	UserID        string
-	STTConfig     transcription.Config
-	STTOptions    transcription.SessionOptions
-	TTSConfig     synthesis.Config
-	VoiceID       string
-	TTSModelID    string
-	TTSLanguage   string
-	TTSSpeed      float32
-	TTSFormat     string
-	BargeInPolicy BargeInPolicy
-	Agents        []router.AgentInfo
-	Router        router.Router
+	AgentID        string
+	UserID         string
+	STTConfig      transcription.Config
+	STTOptions     transcription.SessionOptions
+	TTSConfig      synthesis.Config
+	VoiceID        string
+	TTSModelID     string
+	TTSLanguage    string
+	TTSSpeed       float32
+	TTSFormat      string
+	BargeInPolicy  BargeInPolicy
+	Agents         []router.AgentInfo
+	Router         router.Router
+	VisionAnalyzer *vision.Analyzer
+	VisionStore    *vision.Store
+}
+
+type VideoConnection interface {
+	OnVideo(fn func([]byte, string))
+	HasVideo() bool
 }
 
 func New(conn transport.Connection, bridge transport.Bridge, cfg Config, log *slog.Logger) (*VoiceSession, error) {
@@ -73,19 +84,36 @@ func New(conn transport.Connection, bridge transport.Bridge, cfg Config, log *sl
 	}
 
 	s := &VoiceSession{
-		sessionID:   sessionID,
-		userID:      cfg.UserID,
-		agentID:     cfg.AgentID,
-		conn:        conn,
-		bridge:      bridge,
-		ctx:         ctx,
-		cancel:      cancel,
-		log:         log.With("session_id", sessionID),
-		ttsCancelCh: make(chan struct{}),
-		speechCtrl:  speechCtrl,
-		router:      rtr,
-		arbiter:     NewArbiter(),
-		agents:      cfg.Agents,
+		sessionID:      sessionID,
+		userID:         cfg.UserID,
+		agentID:        cfg.AgentID,
+		conn:           conn,
+		bridge:         bridge,
+		ctx:            ctx,
+		cancel:         cancel,
+		log:            log.With("session_id", sessionID),
+		ttsCancelCh:    make(chan struct{}),
+		speechCtrl:     speechCtrl,
+		router:         rtr,
+		arbiter:        NewArbiter(),
+		agents:         cfg.Agents,
+		visionAnalyzer: cfg.VisionAnalyzer,
+	}
+
+	if cfg.VisionAnalyzer != nil && cfg.VisionStore != nil {
+		if videoConn, ok := conn.(VideoConnection); ok {
+			capturer := vision.NewFrameCapturer(vision.CapturerConfig{
+				SessionID:   sessionID,
+				Store:       cfg.VisionStore,
+				CaptureRate: 2 * time.Second,
+				Logger:      log,
+			})
+			s.frameCapturer = capturer
+
+			videoConn.OnVideo(func(payload []byte, mimeType string) {
+				capturer.HandleRTPPacket(payload, mimeType)
+			})
+		}
 	}
 
 	sttClient, err := transcription.New(cfg.STTConfig, cfg.STTOptions, transcription.Callbacks{
@@ -165,6 +193,10 @@ func (s *VoiceSession) onSpeechStart() {
 	s.sendEvent(transport.MessageTypeSpeechStart, nil)
 	actions := s.speechCtrl.OnUserSpeechStart(time.Now())
 	s.executeActions(actions)
+
+	if s.visionAnalyzer != nil {
+		s.visionAnalyzer.StartAnalysis(s.ctx, s.sessionID)
+	}
 }
 
 func (s *VoiceSession) onSpeechEnd() {
@@ -226,6 +258,23 @@ func (s *VoiceSession) onTranscript(evt transcription.TranscriptEvent) {
 		return
 	}
 
+	payload := transport.UtterancePayload{
+		Text:    evt.Text,
+		IsFinal: true,
+	}
+
+	if s.visionAnalyzer != nil {
+		visionResult := s.visionAnalyzer.GetResult(500 * time.Millisecond)
+		if visionResult != nil && visionResult.Available {
+			payload.Vision = &transport.VisionContext{
+				Description: visionResult.Description,
+				Timestamp:   visionResult.Timestamp,
+				Available:   true,
+			}
+		}
+		s.visionAnalyzer.Reset()
+	}
+
 	msg := &transport.AgentMessage{
 		Type:      transport.MessageTypeUtterance,
 		RequestID: uuid.New().String(),
@@ -233,10 +282,7 @@ func (s *VoiceSession) onTranscript(evt transcription.TranscriptEvent) {
 		AgentID:   s.agentID,
 		UserID:    s.userID,
 		Timestamp: time.Now(),
-		Payload: transport.UtterancePayload{
-			Text:    evt.Text,
-			IsFinal: true,
-		},
+		Payload:   payload,
 	}
 
 	if len(s.agents) > 0 {
@@ -285,6 +331,11 @@ func (s *VoiceSession) onSTTError(err error) {
 
 func (s *VoiceSession) onAgentResponse(sessionID string, msg *transport.AgentMessage) {
 	if sessionID != s.sessionID {
+		return
+	}
+
+	if msg.Type == transport.MessageTypeFrameRequest {
+		s.handleFrameRequest(msg)
 		return
 	}
 
@@ -417,6 +468,99 @@ func (s *VoiceSession) sendEvent(msgType transport.MessageType, payload any) {
 	}
 }
 
+func (s *VoiceSession) handleFrameRequest(msg *transport.AgentMessage) {
+	if s.visionAnalyzer == nil {
+		s.sendFrameResponse(msg.AgentID, msg.RequestID, nil, "vision not available")
+		return
+	}
+
+	var req transport.FrameRequestPayload
+	switch p := msg.Payload.(type) {
+	case transport.FrameRequestPayload:
+		req = p
+	case *transport.FrameRequestPayload:
+		req = *p
+	case map[string]any:
+		if v, ok := p["start_time"].(float64); ok {
+			req.StartTime = int64(v)
+		}
+		if v, ok := p["end_time"].(float64); ok {
+			req.EndTime = int64(v)
+		}
+		if v, ok := p["limit"].(float64); ok {
+			req.Limit = int(v)
+		}
+		if v, ok := p["raw_base64"].(bool); ok {
+			req.RawBase64 = v
+		}
+	default:
+		s.sendFrameResponse(msg.AgentID, msg.RequestID, nil, "invalid request payload")
+		return
+	}
+
+	if req.Limit == 0 {
+		req.Limit = 5
+	}
+	if req.EndTime == 0 {
+		req.EndTime = time.Now().UnixMilli()
+	}
+	if req.StartTime == 0 {
+		req.StartTime = req.EndTime - 30000
+	}
+
+	frameReq := vision.FrameRequest{
+		SessionID: s.sessionID,
+		StartTime: req.StartTime,
+		EndTime:   req.EndTime,
+		Limit:     req.Limit,
+		RawBase64: req.RawBase64,
+	}
+
+	resp, err := s.visionAnalyzer.GetFrames(s.ctx, frameReq)
+	if err != nil {
+		s.sendFrameResponse(msg.AgentID, msg.RequestID, nil, err.Error())
+		return
+	}
+
+	payload := &transport.FrameResponsePayload{}
+	if req.RawBase64 {
+		payload.Frames = make([]transport.FrameData, len(resp.Frames))
+		for i, f := range resp.Frames {
+			payload.Frames[i] = transport.FrameData{
+				Timestamp: f.Timestamp,
+				Base64:    f.Base64,
+			}
+		}
+	} else {
+		payload.Descriptions = resp.Descriptions
+	}
+
+	s.sendFrameResponse(msg.AgentID, msg.RequestID, payload, "")
+}
+
+func (s *VoiceSession) sendFrameResponse(agentID, requestID string, payload *transport.FrameResponsePayload, errMsg string) {
+	if payload == nil {
+		payload = &transport.FrameResponsePayload{}
+	}
+	if errMsg != "" {
+		payload.Error = errMsg
+	}
+
+	msg := &transport.AgentMessage{
+		Type:      transport.MessageTypeFrameResponse,
+		RequestID: requestID,
+		SessionID: s.sessionID,
+		AgentID:   agentID,
+		UserID:    s.userID,
+		Timestamp: time.Now(),
+		Payload:   payload,
+	}
+
+	if err := s.bridge.PublishResponse(s.ctx, msg); err != nil {
+		s.log.Error("failed to send frame response", "error", err)
+	}
+}
+
 func (s *VoiceSession) Close() error {
 	s.cancel()
 
@@ -430,6 +574,16 @@ func (s *VoiceSession) Close() error {
 
 	if err := s.tts.Close(); err != nil {
 		s.log.Error("failed to close TTS", "error", err)
+	}
+
+	if s.frameCapturer != nil {
+		s.frameCapturer.Stop()
+	}
+
+	if s.visionAnalyzer != nil {
+		if err := s.visionAnalyzer.Cleanup(context.Background(), s.sessionID); err != nil {
+			s.log.Error("failed to cleanup vision frames", "error", err)
+		}
 	}
 
 	return s.conn.Close()

@@ -61,12 +61,19 @@ func ProvideRouter() *router.SmartRouter {
 	return router.NewSmartRouter()
 }
 
-func ProvideVoiceSessionManager(bridge *gateway.Bridge, rtr *router.SmartRouter, logger *slog.Logger) *voicesession.Manager {
-	return voicesession.NewManager(voicesession.ManagerConfig{
+func ProvideVoiceSessionManager(bridge *gateway.Bridge, rtr *router.SmartRouter, visionComponents *VisionComponents, logger *slog.Logger) *voicesession.Manager {
+	cfg := voicesession.ManagerConfig{
 		Bridge: bridge,
 		Router: rtr,
 		Log:    logger,
-	})
+	}
+
+	if visionComponents != nil {
+		cfg.VisionAnalyzer = visionComponents.Analyzer
+		cfg.VisionStore = visionComponents.Store
+	}
+
+	return voicesession.NewManager(cfg)
 }
 
 func ProvideVoiceStarter(sessionMgr *voicesession.Manager, logger *slog.Logger) *gateway.VoiceStarter {

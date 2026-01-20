@@ -34,6 +34,10 @@ type Config struct {
 
 	StaticDir string
 	IndexHTML string
+
+	VisionOllamaURL string
+	VisionModel     string
+	VisionEnabled   bool
 }
 
 type ICEServerConfig struct {
@@ -71,6 +75,10 @@ func LoadConfig() *Config {
 
 		StaticDir: getEnv("STATIC_DIR", "./static"),
 		IndexHTML: getEnv("INDEX_HTML", "./static/index.html"),
+
+		VisionOllamaURL: getEnv("VISION_OLLAMA_URL", ""),
+		VisionModel:     getEnv("VISION_MODEL", "qwen2.5vl"),
+		VisionEnabled:   getEnv("VISION_ENABLED", "false") == "true",
 	}
 }
 

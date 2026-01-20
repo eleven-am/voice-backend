@@ -92,13 +92,10 @@ class ManagedEngine(Generic[T]):
     def _decrement_ref(self) -> None:
         with self.rlock:
             self.ref_count -= 1
-            if self.ref_count <= 0 and self.ttl >= 0:
-                if self.ttl > 0:
-                    logger.info(f"Engine {self.engine_id} idle, unloading in {self.ttl}s")
-                    self.expire_timer = threading.Timer(self.ttl, self.unload)
-                    self.expire_timer.start()
-                else:
-                    self.unload()
+            if self.ref_count <= 0 and self.ttl > 0:
+                logger.info(f"Engine {self.engine_id} idle, unloading in {self.ttl}s")
+                self.expire_timer = threading.Timer(self.ttl, self.unload)
+                self.expire_timer.start()
 
     def __enter__(self) -> T:
         with self.rlock:
@@ -150,6 +147,8 @@ class STTEngineManager:
         model_id = model_id or self.config.model_id
         wrapper = self.get_engine(model_id)
         wrapper._load()
+        wrapper._increment_ref()
+        wrapper._decrement_ref()
 
     def force_unload(self, model_id: str | None = None) -> None:
         model_id = model_id or self.config.model_id

@@ -24,7 +24,7 @@ const (
 	maxAudioDataSize = 500 * 1024 * 1024
 	maxSpeed         = 4.0
 	minSpeed         = 0.25
-	synthesisTimeout = 30 * time.Second
+	synthesisTimeout = 10 * time.Minute
 	initialBufSize   = 64 * 1024
 )
 
