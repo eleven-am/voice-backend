@@ -11,7 +11,7 @@ import (
 func TestNewVoiceStarter(t *testing.T) {
 	cfg := VoiceStarterConfig{
 		SessionManager: nil,
-		DefaultAgentID: "default_agent",
+		AgentStore:     nil,
 		DefaultConfig:  voicesession.Config{},
 		Log:            nil,
 	}
@@ -20,8 +20,8 @@ func TestNewVoiceStarter(t *testing.T) {
 	if starter == nil {
 		t.Fatal("NewVoiceStarter should not return nil")
 	}
-	if starter.defaultAgentID != "default_agent" {
-		t.Errorf("expected default_agent, got %s", starter.defaultAgentID)
+	if starter.agentStore != nil {
+		t.Error("agentStore should be nil when not provided")
 	}
 }
 
@@ -29,7 +29,7 @@ func TestNewVoiceStarter_WithLogger(t *testing.T) {
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
 	cfg := VoiceStarterConfig{
 		SessionManager: nil,
-		DefaultAgentID: "test_agent",
+		AgentStore:     nil,
 		DefaultConfig:  voicesession.Config{},
 		Log:            logger,
 	}

@@ -17,7 +17,7 @@ import (
 
 func TestNewHandler(t *testing.T) {
 	mgr, _ := NewManager(Config{})
-	h := NewHandler(mgr, nil, nil, nil, nil)
+	h := NewHandler(mgr, nil, nil, nil)
 	if h == nil {
 		t.Fatal("NewHandler should not return nil")
 	}
@@ -32,7 +32,7 @@ func TestNewHandler(t *testing.T) {
 func TestNewHandler_WithLogger(t *testing.T) {
 	mgr, _ := NewManager(Config{})
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
-	h := NewHandler(mgr, nil, nil, nil, logger)
+	h := NewHandler(mgr, nil, nil, logger)
 	if h.log == nil {
 		t.Error("handler should have provided logger")
 	}
@@ -43,7 +43,7 @@ func TestNewHandler_WithAuth(t *testing.T) {
 	auth := func(r *http.Request) (*transport.UserProfile, error) {
 		return &transport.UserProfile{UserID: "user-123"}, nil
 	}
-	h := NewHandler(mgr, nil, auth, nil, nil)
+	h := NewHandler(mgr, nil, auth, nil)
 	if h.auth == nil {
 		t.Error("handler should have auth func")
 	}
@@ -51,7 +51,7 @@ func TestNewHandler_WithAuth(t *testing.T) {
 
 func TestHandler_maxSDPSize_Default(t *testing.T) {
 	mgr, _ := NewManager(Config{})
-	h := NewHandler(mgr, nil, nil, nil, nil)
+	h := NewHandler(mgr, nil, nil, nil)
 	maxSize := h.maxSDPSize()
 	if maxSize != 64*1024 {
 		t.Errorf("expected default max SDP size 64KB, got %d", maxSize)
@@ -60,7 +60,7 @@ func TestHandler_maxSDPSize_Default(t *testing.T) {
 
 func TestHandler_maxSDPSize_Custom(t *testing.T) {
 	mgr, _ := NewManager(Config{MaxSDPSize: 128 * 1024})
-	h := NewHandler(mgr, nil, nil, nil, nil)
+	h := NewHandler(mgr, nil, nil, nil)
 	maxSize := h.maxSDPSize()
 	if maxSize != 128*1024 {
 		t.Errorf("expected custom max SDP size 128KB, got %d", maxSize)
@@ -69,7 +69,7 @@ func TestHandler_maxSDPSize_Custom(t *testing.T) {
 
 func TestHandler_iceServersResponse_Default(t *testing.T) {
 	mgr, _ := NewManager(Config{})
-	h := NewHandler(mgr, nil, nil, nil, nil)
+	h := NewHandler(mgr, nil, nil, nil)
 	servers := h.iceServersResponse()
 	if len(servers) != 1 {
 		t.Fatalf("expected 1 default server, got %d", len(servers))
@@ -86,7 +86,7 @@ func TestHandler_iceServersResponse_Custom(t *testing.T) {
 			{URLs: []string{"turn:turn.example.com"}, Username: "user", Credential: "pass"},
 		},
 	})
-	h := NewHandler(mgr, nil, nil, nil, nil)
+	h := NewHandler(mgr, nil, nil, nil)
 	servers := h.iceServersResponse()
 	if len(servers) != 2 {
 		t.Fatalf("expected 2 servers, got %d", len(servers))
@@ -103,7 +103,7 @@ func TestHandler_HandleICEServers(t *testing.T) {
 			{URLs: []string{"stun:stun.example.com"}},
 		},
 	})
-	h := NewHandler(mgr, nil, nil, nil, nil)
+	h := NewHandler(mgr, nil, nil, nil)
 
 	req := httptest.NewRequest(http.MethodGet, "/ice-servers", nil)
 	rec := httptest.NewRecorder()
@@ -129,10 +129,10 @@ func TestHandler_HandleICEServers(t *testing.T) {
 	}
 }
 
-func TestHandler_extractSDP_JSON(t *testing.T) {
+func TestHandler_extractRequest_JSON(t *testing.T) {
 	e := echo.New()
 	mgr, _ := NewManager(Config{})
-	h := NewHandler(mgr, nil, nil, nil, nil)
+	h := NewHandler(mgr, nil, nil, nil)
 
 	body := `{"sdp":"v=0\r\n..."}`
 	req := httptest.NewRequest(http.MethodPost, "/calls", strings.NewReader(body))
@@ -140,38 +140,38 @@ func TestHandler_extractSDP_JSON(t *testing.T) {
 	rec := httptest.NewRecorder()
 	c := e.NewContext(req, rec)
 
-	sdp, err := h.extractSDP(c)
+	sdp, _, err := h.extractRequest(c)
 	if err != nil {
-		t.Fatalf("extractSDP should not error: %v", err)
+		t.Fatalf("extractRequest should not error: %v", err)
 	}
 	if sdp != "v=0\r\n..." {
 		t.Errorf("expected SDP 'v=0\\r\\n...', got %s", sdp)
 	}
 }
 
-func TestHandler_extractSDP_EmptyContentType(t *testing.T) {
+func TestHandler_extractRequest_EmptyContentType(t *testing.T) {
 	e := echo.New()
 	mgr, _ := NewManager(Config{})
-	h := NewHandler(mgr, nil, nil, nil, nil)
+	h := NewHandler(mgr, nil, nil, nil)
 
 	body := `{"sdp":"test-sdp"}`
 	req := httptest.NewRequest(http.MethodPost, "/calls", strings.NewReader(body))
 	rec := httptest.NewRecorder()
 	c := e.NewContext(req, rec)
 
-	sdp, err := h.extractSDP(c)
+	sdp, _, err := h.extractRequest(c)
 	if err != nil {
-		t.Fatalf("extractSDP should not error: %v", err)
+		t.Fatalf("extractRequest should not error: %v", err)
 	}
 	if sdp != "test-sdp" {
 		t.Errorf("expected SDP 'test-sdp', got %s", sdp)
 	}
 }
 
-func TestHandler_extractSDP_ApplicationSDP(t *testing.T) {
+func TestHandler_extractRequest_ApplicationSDP(t *testing.T) {
 	e := echo.New()
 	mgr, _ := NewManager(Config{})
-	h := NewHandler(mgr, nil, nil, nil, nil)
+	h := NewHandler(mgr, nil, nil, nil)
 
 	body := "v=0\r\no=- 123 456 IN IP4 127.0.0.1\r\n"
 	req := httptest.NewRequest(http.MethodPost, "/calls", strings.NewReader(body))
@@ -179,19 +179,19 @@ func TestHandler_extractSDP_ApplicationSDP(t *testing.T) {
 	rec := httptest.NewRecorder()
 	c := e.NewContext(req, rec)
 
-	sdp, err := h.extractSDP(c)
+	sdp, _, err := h.extractRequest(c)
 	if err != nil {
-		t.Fatalf("extractSDP should not error: %v", err)
+		t.Fatalf("extractRequest should not error: %v", err)
 	}
 	if sdp != body {
 		t.Errorf("expected raw SDP body, got %s", sdp)
 	}
 }
 
-func TestHandler_extractSDP_Multipart(t *testing.T) {
+func TestHandler_extractRequest_Multipart(t *testing.T) {
 	e := echo.New()
 	mgr, _ := NewManager(Config{})
-	h := NewHandler(mgr, nil, nil, nil, nil)
+	h := NewHandler(mgr, nil, nil, nil)
 
 	var buf bytes.Buffer
 	writer := multipart.NewWriter(&buf)
@@ -207,19 +207,19 @@ func TestHandler_extractSDP_Multipart(t *testing.T) {
 	rec := httptest.NewRecorder()
 	c := e.NewContext(req, rec)
 
-	sdp, err := h.extractSDP(c)
+	sdp, _, err := h.extractRequest(c)
 	if err != nil {
-		t.Fatalf("extractSDP should not error: %v", err)
+		t.Fatalf("extractRequest should not error: %v", err)
 	}
 	if sdp != "multipart-sdp-content" {
 		t.Errorf("expected multipart SDP, got %s", sdp)
 	}
 }
 
-func TestHandler_extractSDP_MultipartNoSDP(t *testing.T) {
+func TestHandler_extractRequest_MultipartNoSDP(t *testing.T) {
 	e := echo.New()
 	mgr, _ := NewManager(Config{})
-	h := NewHandler(mgr, nil, nil, nil, nil)
+	h := NewHandler(mgr, nil, nil, nil)
 
 	var buf bytes.Buffer
 	writer := multipart.NewWriter(&buf)
@@ -232,41 +232,41 @@ func TestHandler_extractSDP_MultipartNoSDP(t *testing.T) {
 	rec := httptest.NewRecorder()
 	c := e.NewContext(req, rec)
 
-	_, err := h.extractSDP(c)
+	_, _, err := h.extractRequest(c)
 	if err == nil {
-		t.Error("extractSDP should error when sdp field not found")
+		t.Error("extractRequest should error when sdp field not found")
 	}
 }
 
-func TestHandler_extractSDP_UnsupportedContentType(t *testing.T) {
+func TestHandler_extractRequest_UnsupportedContentType(t *testing.T) {
 	e := echo.New()
 	mgr, _ := NewManager(Config{})
-	h := NewHandler(mgr, nil, nil, nil, nil)
+	h := NewHandler(mgr, nil, nil, nil)
 
 	req := httptest.NewRequest(http.MethodPost, "/calls", strings.NewReader("data"))
 	req.Header.Set("Content-Type", "text/plain")
 	rec := httptest.NewRecorder()
 	c := e.NewContext(req, rec)
 
-	_, err := h.extractSDP(c)
+	_, _, err := h.extractRequest(c)
 	if err == nil {
-		t.Error("extractSDP should error for unsupported content type")
+		t.Error("extractRequest should error for unsupported content type")
 	}
 }
 
-func TestHandler_extractSDP_InvalidJSON(t *testing.T) {
+func TestHandler_extractRequest_InvalidJSON(t *testing.T) {
 	e := echo.New()
 	mgr, _ := NewManager(Config{})
-	h := NewHandler(mgr, nil, nil, nil, nil)
+	h := NewHandler(mgr, nil, nil, nil)
 
 	req := httptest.NewRequest(http.MethodPost, "/calls", strings.NewReader("{invalid}"))
 	req.Header.Set("Content-Type", "application/json")
 	rec := httptest.NewRecorder()
 	c := e.NewContext(req, rec)
 
-	_, err := h.extractSDP(c)
+	_, _, err := h.extractRequest(c)
 	if err == nil {
-		t.Error("extractSDP should error for invalid JSON")
+		t.Error("extractRequest should error for invalid JSON")
 	}
 }
 
@@ -276,7 +276,7 @@ func TestHandler_HandleICECandidate_Unauthorized(t *testing.T) {
 	auth := func(r *http.Request) (*transport.UserProfile, error) {
 		return nil, echo.NewHTTPError(http.StatusUnauthorized)
 	}
-	h := NewHandler(mgr, nil, auth, nil, nil)
+	h := NewHandler(mgr, nil, auth, nil)
 
 	req := httptest.NewRequest(http.MethodPost, "/calls/session-123", strings.NewReader("{}"))
 	rec := httptest.NewRecorder()
@@ -300,7 +300,7 @@ func TestHandler_HandleICECandidate_MissingSessionID(t *testing.T) {
 	auth := func(r *http.Request) (*transport.UserProfile, error) {
 		return &transport.UserProfile{UserID: "user-123"}, nil
 	}
-	h := NewHandler(mgr, nil, auth, nil, nil)
+	h := NewHandler(mgr, nil, auth, nil)
 
 	req := httptest.NewRequest(http.MethodPost, "/calls/", strings.NewReader("{}"))
 	rec := httptest.NewRecorder()
@@ -322,7 +322,7 @@ func TestHandler_HandleICECandidate_SessionNotFound(t *testing.T) {
 	auth := func(r *http.Request) (*transport.UserProfile, error) {
 		return &transport.UserProfile{UserID: "user-123"}, nil
 	}
-	h := NewHandler(mgr, nil, auth, nil, nil)
+	h := NewHandler(mgr, nil, auth, nil)
 
 	req := httptest.NewRequest(http.MethodPost, "/calls/nonexistent", strings.NewReader("{}"))
 	rec := httptest.NewRecorder()
@@ -346,7 +346,7 @@ func TestHandler_HandleICEStream_Unauthorized(t *testing.T) {
 	auth := func(r *http.Request) (*transport.UserProfile, error) {
 		return nil, echo.NewHTTPError(http.StatusUnauthorized)
 	}
-	h := NewHandler(mgr, nil, auth, nil, nil)
+	h := NewHandler(mgr, nil, auth, nil)
 
 	req := httptest.NewRequest(http.MethodGet, "/calls/session-123", nil)
 	rec := httptest.NewRecorder()
@@ -366,7 +366,7 @@ func TestHandler_HandleICEStream_SessionNotFound(t *testing.T) {
 	auth := func(r *http.Request) (*transport.UserProfile, error) {
 		return &transport.UserProfile{UserID: "user-123"}, nil
 	}
-	h := NewHandler(mgr, nil, auth, nil, nil)
+	h := NewHandler(mgr, nil, auth, nil)
 
 	req := httptest.NewRequest(http.MethodGet, "/calls/nonexistent", nil)
 	rec := httptest.NewRecorder()
@@ -386,7 +386,7 @@ func TestHandler_HandleOffer_Unauthorized(t *testing.T) {
 	auth := func(r *http.Request) (*transport.UserProfile, error) {
 		return nil, echo.NewHTTPError(http.StatusUnauthorized)
 	}
-	h := NewHandler(mgr, nil, auth, nil, nil)
+	h := NewHandler(mgr, nil, auth, nil)
 
 	req := httptest.NewRequest(http.MethodPost, "/calls", strings.NewReader(`{"sdp":"test"}`))
 	req.Header.Set("Content-Type", "application/json")
@@ -405,7 +405,7 @@ func TestHandler_HandleOffer_MissingSDP(t *testing.T) {
 	auth := func(r *http.Request) (*transport.UserProfile, error) {
 		return &transport.UserProfile{UserID: "user-123"}, nil
 	}
-	h := NewHandler(mgr, nil, auth, nil, nil)
+	h := NewHandler(mgr, nil, auth, nil)
 
 	req := httptest.NewRequest(http.MethodPost, "/calls", strings.NewReader(`{"sdp":""}`))
 	req.Header.Set("Content-Type", "application/json")
@@ -425,15 +425,15 @@ func TestHandler_HandleOffer_MissingSDP(t *testing.T) {
 func TestHandler_RegisterRoutes(t *testing.T) {
 	e := echo.New()
 	mgr, _ := NewManager(Config{})
-	h := NewHandler(mgr, nil, nil, nil, nil)
-	g := e.Group("/v1/voice")
+	h := NewHandler(mgr, nil, nil, nil)
+	g := e.Group("/v1/realtime")
 	h.RegisterRoutes(g)
 
 	routes := e.Routes()
 	expectedPaths := map[string]bool{
-		"/v1/voice/calls":             false,
-		"/v1/voice/calls/:session_id": false,
-		"/v1/voice/ice-servers":       false,
+		"/v1/realtime/calls":             false,
+		"/v1/realtime/calls/:session_id": false,
+		"/v1/realtime/ice-servers":       false,
 	}
 
 	for _, r := range routes {

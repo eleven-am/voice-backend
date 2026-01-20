@@ -15,36 +15,34 @@ import (
 )
 
 type Handler struct {
-	manager      *Manager
-	starter      transport.SessionStarter
-	auth         transport.AuthFunc
-	scopeFactory transport.ScopeLookupFactory
-	log          *slog.Logger
+	manager *Manager
+	starter transport.SessionStarter
+	auth    transport.AuthFunc
+	log     *slog.Logger
 }
 
 type HandlerConfig struct {
-	Manager      *Manager
-	Starter      transport.SessionStarter
-	Auth         transport.AuthFunc
-	ScopeFactory transport.ScopeLookupFactory
-	Log          *slog.Logger
+	Manager *Manager
+	Starter transport.SessionStarter
+	Auth    transport.AuthFunc
+	Log     *slog.Logger
 }
 
-func NewHandler(mgr *Manager, starter transport.SessionStarter, auth transport.AuthFunc, scopeFactory transport.ScopeLookupFactory, log *slog.Logger) *Handler {
+func NewHandler(mgr *Manager, starter transport.SessionStarter, auth transport.AuthFunc, log *slog.Logger) *Handler {
 	if log == nil {
 		log = slog.Default()
 	}
 	return &Handler{
-		manager:      mgr,
-		starter:      starter,
-		auth:         auth,
-		scopeFactory: scopeFactory,
-		log:          log,
+		manager: mgr,
+		starter: starter,
+		auth:    auth,
+		log:     log,
 	}
 }
 
 type OfferRequest struct {
-	SDP string `json:"sdp"`
+	SDP     string                   `json:"sdp"`
+	Session *transport.SessionConfig `json:"session,omitempty"`
 }
 
 type OfferResponse struct {
@@ -213,14 +211,9 @@ func (h *Handler) HandleOffer(c echo.Context) error {
 		Email:  profile.Email,
 	}
 
-	var scopeLookup transport.ScopeLookup
-	if h.scopeFactory != nil {
-		scopeLookup = h.scopeFactory(profile.UserID)
-	}
-
-	sdp, err := h.extractSDP(c)
+	sdp, sessionConfig, err := h.extractRequest(c)
 	if err != nil {
-		h.log.Error("failed to extract SDP", "error", err)
+		h.log.Error("failed to extract request", "error", err)
 		return echo.NewHTTPError(http.StatusBadRequest, err.Error())
 	}
 
@@ -272,7 +265,7 @@ func (h *Handler) HandleOffer(c echo.Context) error {
 	if err := h.starter.Start(transport.StartRequest{
 		Conn:        conn,
 		UserContext: userCtx,
-		ScopeLookup: scopeLookup,
+		Config:      sessionConfig,
 	}); err != nil {
 		conn.Close()
 		h.manager.RemoveSession(rtcSession.ID)
@@ -282,10 +275,10 @@ func (h *Handler) HandleOffer(c echo.Context) error {
 
 	c.Response().Header().Set("X-Session-Id", rtcSession.ID)
 	c.Response().Header().Set("Content-Type", "application/sdp")
-	return c.String(http.StatusCreated, answer)
+	return c.String(http.StatusOK, answer)
 }
 
-func (h *Handler) extractSDP(c echo.Context) (string, error) {
+func (h *Handler) extractRequest(c echo.Context) (string, *transport.SessionConfig, error) {
 	contentType := c.Request().Header.Get("Content-Type")
 	mediaType, params, _ := mime.ParseMediaType(contentType)
 
@@ -293,46 +286,62 @@ func (h *Handler) extractSDP(c echo.Context) (string, error) {
 	case "application/sdp":
 		body, err := io.ReadAll(io.LimitReader(c.Request().Body, h.maxSDPSize()))
 		if err != nil {
-			return "", fmt.Errorf("failed to read SDP body: %w", err)
+			return "", nil, fmt.Errorf("failed to read SDP body: %w", err)
 		}
-		return string(body), nil
+		return string(body), nil, nil
 
 	case "multipart/form-data":
 		boundary := params["boundary"]
 		if boundary == "" {
-			return "", fmt.Errorf("missing boundary in multipart")
+			return "", nil, fmt.Errorf("missing boundary in multipart")
 		}
 		reader := multipart.NewReader(c.Request().Body, boundary)
+		var sdp string
+		var sessionConfig *transport.SessionConfig
 		for {
 			part, err := reader.NextPart()
 			if err == io.EOF {
 				break
 			}
 			if err != nil {
-				return "", fmt.Errorf("failed to read multipart: %w", err)
+				return "", nil, fmt.Errorf("failed to read multipart: %w", err)
 			}
-			if part.FormName() == "sdp" {
+			switch part.FormName() {
+			case "sdp":
 				data, err := io.ReadAll(io.LimitReader(part, h.maxSDPSize()))
 				if err != nil {
-					return "", fmt.Errorf("failed to read SDP part: %w", err)
+					return "", nil, fmt.Errorf("failed to read SDP part: %w", err)
 				}
-				return string(data), nil
+				sdp = string(data)
+			case "session":
+				data, err := io.ReadAll(io.LimitReader(part, h.maxSDPSize()))
+				if err != nil {
+					return "", nil, fmt.Errorf("failed to read session part: %w", err)
+				}
+				var cfg transport.SessionConfig
+				if err := json.Unmarshal(data, &cfg); err != nil {
+					return "", nil, fmt.Errorf("invalid session config: %w", err)
+				}
+				sessionConfig = &cfg
 			}
 		}
-		return "", fmt.Errorf("sdp field not found in multipart")
+		if sdp == "" {
+			return "", nil, fmt.Errorf("sdp field not found in multipart")
+		}
+		return sdp, sessionConfig, nil
 
 	case "application/json", "":
 		body, err := io.ReadAll(io.LimitReader(c.Request().Body, h.maxSDPSize()))
 		if err != nil {
-			return "", fmt.Errorf("failed to read request body: %w", err)
+			return "", nil, fmt.Errorf("failed to read request body: %w", err)
 		}
 		var req OfferRequest
 		if err := json.Unmarshal(body, &req); err != nil {
-			return "", fmt.Errorf("invalid JSON body: %w", err)
+			return "", nil, fmt.Errorf("invalid JSON body: %w", err)
 		}
-		return req.SDP, nil
+		return req.SDP, req.Session, nil
 
 	default:
-		return "", fmt.Errorf("unsupported content type: %s", contentType)
+		return "", nil, fmt.Errorf("unsupported content type: %s", contentType)
 	}
 }

@@ -103,12 +103,33 @@ type UserContext struct {
 	Email  string
 }
 
-type ScopeLookup func(ctx context.Context, agentID string) ([]string, error)
-
 type StartRequest struct {
 	Conn        Connection
 	UserContext *UserContext
-	ScopeLookup ScopeLookup
+	Config      *SessionConfig
+}
+
+type SessionConfig struct {
+	Voice                     string                      `json:"voice,omitempty"`
+	InputAudioTranscription   *InputAudioTranscription    `json:"input_audio_transcription,omitempty"`
+	TurnDetection             *TurnDetectionConfig        `json:"turn_detection,omitempty"`
+	OutputAudioFormat         string                      `json:"output_audio_format,omitempty"`
+	Speed                     float32                     `json:"speed,omitempty"`
+}
+
+type InputAudioTranscription struct {
+	Model       string  `json:"model,omitempty"`
+	Language    string  `json:"language,omitempty"`
+	Prompt      string  `json:"prompt,omitempty"`
+	Temperature float32 `json:"temperature,omitempty"`
+}
+
+type TurnDetectionConfig struct {
+	Type              string   `json:"type,omitempty"`
+	Threshold         float32  `json:"threshold,omitempty"`
+	PrefixPaddingMs   int      `json:"prefix_padding_ms,omitempty"`
+	SilenceDurationMs int      `json:"silence_duration_ms,omitempty"`
+	CreateResponse    *bool    `json:"create_response,omitempty"`
 }
 
 type SessionStarter interface {
@@ -122,8 +143,6 @@ type UserProfile struct {
 }
 
 type AuthFunc func(r *http.Request) (*UserProfile, error)
-
-type ScopeLookupFactory func(userID string) ScopeLookup
 
 type PartialTranscriptEvent struct {
 	Text      string

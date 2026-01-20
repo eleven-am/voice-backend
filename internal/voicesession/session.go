@@ -17,7 +17,6 @@ import (
 type VoiceSession struct {
 	sessionID string
 	userID    string
-	agentID   string
 
 	conn   transport.Connection
 	stt    transcription.Transcriber
@@ -31,8 +30,10 @@ type VoiceSession struct {
 
 	ttsCancelCh chan struct{}
 	ttsMu       sync.Mutex
+	voiceID     string
+	ttsSpeed    float32
 
-	speechCtrl   *SpeechController
+	speechCtrl *SpeechController
 	router       router.Router
 	arbiter      *Arbiter
 	agents       []router.AgentInfo
@@ -44,16 +45,12 @@ type VoiceSession struct {
 }
 
 type Config struct {
-	AgentID        string
 	UserID         string
 	STTConfig      transcription.Config
 	STTOptions     transcription.SessionOptions
 	TTSConfig      synthesis.Config
 	VoiceID        string
-	TTSModelID     string
-	TTSLanguage    string
 	TTSSpeed       float32
-	TTSFormat      string
 	BargeInPolicy  BargeInPolicy
 	Agents         []router.AgentInfo
 	Router         router.Router
@@ -86,13 +83,14 @@ func New(conn transport.Connection, bridge transport.Bridge, cfg Config, log *sl
 	s := &VoiceSession{
 		sessionID:      sessionID,
 		userID:         cfg.UserID,
-		agentID:        cfg.AgentID,
 		conn:           conn,
 		bridge:         bridge,
 		ctx:            ctx,
 		cancel:         cancel,
 		log:            log.With("session_id", sessionID),
 		ttsCancelCh:    make(chan struct{}),
+		voiceID:        cfg.VoiceID,
+		ttsSpeed:       cfg.TTSSpeed,
 		speechCtrl:     speechCtrl,
 		router:         rtr,
 		arbiter:        NewArbiter(),
@@ -161,8 +159,8 @@ func (s *VoiceSession) UserID() string {
 	return s.userID
 }
 
-func (s *VoiceSession) AgentID() string {
-	return s.agentID
+func (s *VoiceSession) AgentCount() int {
+	return len(s.agents)
 }
 
 func (s *VoiceSession) audioInLoop() {
@@ -279,7 +277,6 @@ func (s *VoiceSession) onTranscript(evt transcription.TranscriptEvent) {
 		Type:      transport.MessageTypeUtterance,
 		RequestID: uuid.New().String(),
 		SessionID: s.sessionID,
-		AgentID:   s.agentID,
 		UserID:    s.userID,
 		Timestamp: time.Now(),
 		Payload:   payload,
@@ -288,7 +285,7 @@ func (s *VoiceSession) onTranscript(evt transcription.TranscriptEvent) {
 	if len(s.agents) > 0 {
 		targetAgents := s.router.Route(s.ctx, evt.Text, s.agents)
 		if len(targetAgents) == 0 {
-			targetAgents = []string{s.agentID}
+			targetAgents = s.allAgentIDs()
 		}
 
 		s.agentMu.Lock()
@@ -305,6 +302,14 @@ func (s *VoiceSession) onTranscript(evt transcription.TranscriptEvent) {
 			s.log.Error("failed to publish utterance", "error", err)
 		}
 	}
+}
+
+func (s *VoiceSession) allAgentIDs() []string {
+	ids := make([]string, len(s.agents))
+	for i, a := range s.agents {
+		ids[i] = a.ID
+	}
+	return ids
 }
 
 func (s *VoiceSession) sendPartialTranscript(evt transcription.TranscriptEvent) {
@@ -400,9 +405,11 @@ func (s *VoiceSession) onAgentResponse(sessionID string, msg *transport.AgentMes
 
 func (s *VoiceSession) synthesizeResponse(text string, cancelCh <-chan struct{}) {
 	req := synthesis.Request{
-		Text:   text,
-		Format: "opus",
-		Cancel: cancelCh,
+		Text:    text,
+		VoiceID: s.voiceID,
+		Speed:   s.ttsSpeed,
+		Format:  "opus",
+		Cancel:  cancelCh,
 	}
 
 	s.speechCtrl.OnTTSAudioStart()

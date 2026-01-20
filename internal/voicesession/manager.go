@@ -135,7 +135,7 @@ func (m *Manager) UpdateHealth(health map[string]router.HealthMetrics) {
 type SessionInfo struct {
 	SessionID   string `json:"session_id"`
 	UserID      string `json:"user_id"`
-	AgentID     string `json:"agent_id"`
+	AgentCount  int    `json:"agent_count"`
 	SpeechState string `json:"speech_state"`
 }
 
@@ -154,7 +154,7 @@ func (m *Manager) ListSessions() []SessionInfo {
 		sessions = append(sessions, SessionInfo{
 			SessionID:   s.SessionID(),
 			UserID:      s.UserID(),
-			AgentID:     s.AgentID(),
+			AgentCount:  s.AgentCount(),
 			SpeechState: string(s.speechCtrl.State()),
 		})
 	}

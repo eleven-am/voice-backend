@@ -231,17 +231,13 @@ func (m *mockSynthesizer) Close() error {
 
 func TestConfig_Fields(t *testing.T) {
 	cfg := Config{
-		AgentID: "agent-1",
-		UserID:  "user-1",
+		UserID: "user-1",
 		Agents: []router.AgentInfo{
 			{ID: "agent-1", Name: "Agent 1"},
 		},
 		BargeInPolicy: BargeInPolicy{AllowWhileSpeaking: true},
 	}
 
-	if cfg.AgentID != "agent-1" {
-		t.Errorf("expected AgentID 'agent-1', got %s", cfg.AgentID)
-	}
 	if cfg.UserID != "user-1" {
 		t.Errorf("expected UserID 'user-1', got %s", cfg.UserID)
 	}

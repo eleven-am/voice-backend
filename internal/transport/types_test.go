@@ -195,7 +195,6 @@ func TestStartRequest_Fields(t *testing.T) {
 	req := StartRequest{
 		Conn:        nil,
 		UserContext: userCtx,
-		ScopeLookup: nil,
 	}
 
 	if req.UserContext != userCtx {

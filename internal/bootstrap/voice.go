@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"strings"
 
+	"github.com/eleven-am/voice-backend/internal/agent"
 	"github.com/eleven-am/voice-backend/internal/apikey"
 	"github.com/eleven-am/voice-backend/internal/audio"
 	"github.com/eleven-am/voice-backend/internal/auth"
@@ -76,9 +77,10 @@ func ProvideVoiceSessionManager(bridge *gateway.Bridge, rtr *router.SmartRouter,
 	return voicesession.NewManager(cfg)
 }
 
-func ProvideVoiceStarter(sessionMgr *voicesession.Manager, logger *slog.Logger) *gateway.VoiceStarter {
+func ProvideVoiceStarter(sessionMgr *voicesession.Manager, agentStore *agent.Store, logger *slog.Logger) *gateway.VoiceStarter {
 	return gateway.NewVoiceStarter(gateway.VoiceStarterConfig{
 		SessionManager: sessionMgr,
+		AgentStore:     agentStore,
 		Log:            logger,
 	})
 }
@@ -111,7 +113,7 @@ func ProvideRTCHandler(
 	auth transport.AuthFunc,
 	logger *slog.Logger,
 ) *realtime.Handler {
-	return realtime.NewHandler(mgr, starter, auth, nil, logger)
+	return realtime.NewHandler(mgr, starter, auth, logger)
 }
 
 func ProvideTTSClient(cfg synthesis.Config) (*synthesis.Client, error) {
@@ -136,7 +138,7 @@ type VoiceRouteParams struct {
 }
 
 func RegisterVoiceRoutes(e *echo.Echo, params VoiceRouteParams) {
-	params.Handler.RegisterRoutes(e.Group("/v1/voice"))
+	params.Handler.RegisterRoutes(e.Group("/v1/realtime"))
 	params.AudioHandler.RegisterRoutes(e.Group("/v1/audio"))
 }
 
