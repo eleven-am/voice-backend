@@ -48,3 +48,8 @@ type AgentReview struct {
 	RepliedAt      *time.Time `json:"replied_at,omitempty"`
 	CreatedAt      time.Time  `json:"created_at"`
 }
+
+type InstalledAgent struct {
+	Agent
+	GrantedScopes []string
+}

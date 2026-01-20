@@ -20,13 +20,14 @@ type IndexedRouter interface {
 }
 
 type AgentInfo struct {
-	ID           string
-	Model        string
-	Name         string
-	Description  string
-	Keywords     []string
-	Capabilities []string
-	Examples     []string
+	ID            string
+	Model         string
+	Name          string
+	Description   string
+	Keywords      []string
+	Capabilities  []string
+	Examples      []string
+	GrantedScopes []string
 }
 
 type HealthMetrics struct {

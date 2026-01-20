@@ -122,13 +122,31 @@ func (s *Store) GetUserInstalls(ctx context.Context, userID string) ([]*AgentIns
 	return installs, err
 }
 
-func (s *Store) GetInstalledAgents(ctx context.Context, userID string) ([]*Agent, error) {
-	var agents []*Agent
+func (s *Store) GetInstalledAgents(ctx context.Context, userID string) ([]*InstalledAgent, error) {
+	var results []struct {
+		Agent
+		GrantedScopes shared.StringSlice `gorm:"column:granted_scopes"`
+	}
+
 	err := s.db.WithContext(ctx).
+		Table("agents").
+		Select("agents.*, agent_installs.granted_scopes").
 		Joins("JOIN agent_installs ON agent_installs.agent_id = agents.id").
 		Where("agent_installs.user_id = ?", userID).
-		Find(&agents).Error
-	return agents, err
+		Scan(&results).Error
+
+	if err != nil {
+		return nil, err
+	}
+
+	agents := make([]*InstalledAgent, len(results))
+	for i, r := range results {
+		agents[i] = &InstalledAgent{
+			Agent:         r.Agent,
+			GrantedScopes: r.GrantedScopes,
+		}
+	}
+	return agents, nil
 }
 
 func (s *Store) UpdateInstallScopes(ctx context.Context, userID, agentID string, scopes []string) error {

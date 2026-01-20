@@ -53,6 +53,7 @@ const (
 	ScopeHistory     Scope = "history"
 	ScopePreferences Scope = "preferences"
 	ScopeVision      Scope = "vision"
+	ScopeLocation    Scope = "location"
 )
 
 func (s Scope) String() string {

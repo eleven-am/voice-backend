@@ -61,8 +61,8 @@ func NewManager(cfg ManagerConfig) *Manager {
 }
 
 func (m *Manager) CreateSession(conn transport.Connection, userCtx *transport.UserContext, cfg Config) (*VoiceSession, error) {
-	if cfg.UserID == "" && userCtx != nil {
-		cfg.UserID = userCtx.UserID
+	if cfg.UserContext == nil {
+		cfg.UserContext = userCtx
 	}
 
 	if cfg.Router == nil {
@@ -91,7 +91,11 @@ func (m *Manager) CreateSession(conn transport.Connection, userCtx *transport.Us
 
 	session.Start()
 
-	m.log.Info("voice session created", "session_id", session.SessionID(), "user_id", cfg.UserID)
+	userID := ""
+	if cfg.UserContext != nil {
+		userID = cfg.UserContext.UserID
+	}
+	m.log.Info("voice session created", "session_id", session.SessionID(), "user_id", userID)
 	return session, nil
 }
 

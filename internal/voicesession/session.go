@@ -3,10 +3,12 @@ package voicesession
 import (
 	"context"
 	"log/slog"
+	"slices"
 	"sync"
 	"time"
 
 	"github.com/eleven-am/voice-backend/internal/router"
+	"github.com/eleven-am/voice-backend/internal/shared"
 	"github.com/eleven-am/voice-backend/internal/synthesis"
 	"github.com/eleven-am/voice-backend/internal/transcription"
 	"github.com/eleven-am/voice-backend/internal/transport"
@@ -16,7 +18,7 @@ import (
 
 type VoiceSession struct {
 	sessionID string
-	userID    string
+	userCtx   *transport.UserContext
 
 	conn   transport.Connection
 	stt    transcription.Transcriber
@@ -45,7 +47,7 @@ type VoiceSession struct {
 }
 
 type Config struct {
-	UserID         string
+	UserContext    *transport.UserContext
 	STTConfig      transcription.Config
 	STTOptions     transcription.SessionOptions
 	TTSConfig      synthesis.Config
@@ -82,7 +84,7 @@ func New(conn transport.Connection, bridge transport.Bridge, cfg Config, log *sl
 
 	s := &VoiceSession{
 		sessionID:      sessionID,
-		userID:         cfg.UserID,
+		userCtx:        cfg.UserContext,
 		conn:           conn,
 		bridge:         bridge,
 		ctx:            ctx,
@@ -156,7 +158,10 @@ func (s *VoiceSession) SessionID() string {
 }
 
 func (s *VoiceSession) UserID() string {
-	return s.userID
+	if s.userCtx == nil {
+		return ""
+	}
+	return s.userCtx.UserID
 }
 
 func (s *VoiceSession) AgentCount() int {
@@ -256,7 +261,7 @@ func (s *VoiceSession) onTranscript(evt transcription.TranscriptEvent) {
 		return
 	}
 
-	payload := transport.UtterancePayload{
+	basePayload := transport.UtterancePayload{
 		Text:    evt.Text,
 		IsFinal: true,
 	}
@@ -264,7 +269,7 @@ func (s *VoiceSession) onTranscript(evt transcription.TranscriptEvent) {
 	if s.visionAnalyzer != nil {
 		visionResult := s.visionAnalyzer.GetResult(500 * time.Millisecond)
 		if visionResult != nil && visionResult.Available {
-			payload.Vision = &transport.VisionContext{
+			basePayload.Vision = &transport.VisionContext{
 				Description: visionResult.Description,
 				Timestamp:   visionResult.Timestamp,
 				Available:   true,
@@ -273,14 +278,8 @@ func (s *VoiceSession) onTranscript(evt transcription.TranscriptEvent) {
 		s.visionAnalyzer.Reset()
 	}
 
-	msg := &transport.AgentMessage{
-		Type:      transport.MessageTypeUtterance,
-		RequestID: uuid.New().String(),
-		SessionID: s.sessionID,
-		UserID:    s.userID,
-		Timestamp: time.Now(),
-		Payload:   payload,
-	}
+	requestID := uuid.New().String()
+	timestamp := time.Now()
 
 	if len(s.agents) > 0 {
 		targetAgents := s.router.Route(s.ctx, evt.Text, s.agents)
@@ -294,10 +293,33 @@ func (s *VoiceSession) onTranscript(evt transcription.TranscriptEvent) {
 
 		s.arbiter.Start(targetAgents)
 
-		if err := s.bridge.PublishToAgents(s.ctx, targetAgents, msg); err != nil {
-			s.log.Error("failed to publish to agents", "error", err)
+		groups := s.groupByScopes(targetAgents)
+		for scopeKey, agentIDs := range groups {
+			scopes := s.parseScopeKey(scopeKey)
+			scopedPayload := s.buildPayload(basePayload, scopes)
+
+			msg := &transport.AgentMessage{
+				Type:      transport.MessageTypeUtterance,
+				RequestID: requestID,
+				SessionID: s.sessionID,
+				UserID:    s.UserID(),
+				Timestamp: timestamp,
+				Payload:   scopedPayload,
+			}
+
+			if err := s.bridge.PublishToAgents(s.ctx, agentIDs, msg); err != nil {
+				s.log.Error("failed to publish to agents", "scopes", scopeKey, "error", err)
+			}
 		}
 	} else {
+		msg := &transport.AgentMessage{
+			Type:      transport.MessageTypeUtterance,
+			RequestID: requestID,
+			SessionID: s.sessionID,
+			UserID:    s.UserID(),
+			Timestamp: timestamp,
+			Payload:   basePayload,
+		}
 		if err := s.bridge.PublishUtterance(s.ctx, msg); err != nil {
 			s.log.Error("failed to publish utterance", "error", err)
 		}
@@ -310,6 +332,110 @@ func (s *VoiceSession) allAgentIDs() []string {
 		ids[i] = a.ID
 	}
 	return ids
+}
+
+func (s *VoiceSession) getAgentScopes(agentID string) []string {
+	for _, a := range s.agents {
+		if a.ID == agentID {
+			return a.GrantedScopes
+		}
+	}
+	return nil
+}
+
+func (s *VoiceSession) groupByScopes(agentIDs []string) map[string][]string {
+	groups := make(map[string][]string)
+	for _, id := range agentIDs {
+		scopes := s.getAgentScopes(id)
+		relevant := s.relevantScopes(scopes)
+		slices.Sort(relevant)
+		key := s.scopeKey(relevant)
+		groups[key] = append(groups[key], id)
+	}
+	return groups
+}
+
+func (s *VoiceSession) relevantScopes(scopes []string) []string {
+	relevant := []string{
+		shared.ScopeProfile.String(),
+		shared.ScopeEmail.String(),
+		shared.ScopeLocation.String(),
+		shared.ScopeVision.String(),
+	}
+	var result []string
+	for _, scope := range scopes {
+		if slices.Contains(relevant, scope) {
+			result = append(result, scope)
+		}
+	}
+	return result
+}
+
+func (s *VoiceSession) scopeKey(scopes []string) string {
+	if len(scopes) == 0 {
+		return ""
+	}
+	key := ""
+	for i, scope := range scopes {
+		if i > 0 {
+			key += ","
+		}
+		key += scope
+	}
+	return key
+}
+
+func (s *VoiceSession) parseScopeKey(key string) []string {
+	if key == "" {
+		return nil
+	}
+	var scopes []string
+	start := 0
+	for i := 0; i <= len(key); i++ {
+		if i == len(key) || key[i] == ',' {
+			scopes = append(scopes, key[start:i])
+			start = i + 1
+		}
+	}
+	return scopes
+}
+
+func (s *VoiceSession) buildPayload(base transport.UtterancePayload, scopes []string) transport.UtterancePayload {
+	payload := transport.UtterancePayload{
+		Text:    base.Text,
+		IsFinal: base.IsFinal,
+	}
+
+	if slices.Contains(scopes, shared.ScopeVision.String()) && base.Vision != nil {
+		payload.Vision = base.Vision
+	}
+
+	if s.userCtx == nil {
+		return payload
+	}
+
+	var user *transport.UserInfo
+	if slices.Contains(scopes, shared.ScopeProfile.String()) && s.userCtx.Name != "" {
+		if user == nil {
+			user = &transport.UserInfo{}
+		}
+		user.Name = s.userCtx.Name
+	}
+	if slices.Contains(scopes, shared.ScopeEmail.String()) && s.userCtx.Email != "" {
+		if user == nil {
+			user = &transport.UserInfo{}
+		}
+		user.Email = s.userCtx.Email
+	}
+	if slices.Contains(scopes, shared.ScopeLocation.String()) && s.userCtx.IP != "" {
+		if user == nil {
+			user = &transport.UserInfo{}
+		}
+		user.IP = s.userCtx.IP
+	}
+	payload.User = user
+
+	return payload
 }
 
 func (s *VoiceSession) sendPartialTranscript(evt transcription.TranscriptEvent) {
@@ -476,6 +602,12 @@ func (s *VoiceSession) sendEvent(msgType transport.MessageType, payload any) {
 }
 
 func (s *VoiceSession) handleFrameRequest(msg *transport.AgentMessage) {
+	agentScopes := s.getAgentScopes(msg.AgentID)
+	if !slices.Contains(agentScopes, shared.ScopeVision.String()) {
+		s.sendFrameResponse(msg.AgentID, msg.RequestID, nil, "vision scope not granted")
+		return
+	}
+
 	if s.visionAnalyzer == nil {
 		s.sendFrameResponse(msg.AgentID, msg.RequestID, nil, "vision not available")
 		return
@@ -558,7 +690,7 @@ func (s *VoiceSession) sendFrameResponse(agentID, requestID string, payload *tra
 		RequestID: requestID,
 		SessionID: s.sessionID,
 		AgentID:   agentID,
-		UserID:    s.userID,
+		UserID:    s.UserID(),
 		Timestamp: time.Now(),
 		Payload:   payload,
 	}

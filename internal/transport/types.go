@@ -42,7 +42,14 @@ type AgentMessage struct {
 type UtterancePayload struct {
 	Text    string         `json:"text"`
 	IsFinal bool           `json:"is_final"`
+	User    *UserInfo      `json:"user,omitempty"`
 	Vision  *VisionContext `json:"vision,omitempty"`
+}
+
+type UserInfo struct {
+	Name  string `json:"name,omitempty"`
+	Email string `json:"email,omitempty"`
+	IP    string `json:"ip,omitempty"`
 }
 
 type VisionContext struct {

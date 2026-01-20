@@ -39,19 +39,21 @@ func NewVoiceStarter(cfg VoiceStarterConfig) *VoiceStarter {
 
 func (v *VoiceStarter) Start(req transport.StartRequest) error {
 	cfg := v.defaultConfig
-
-	if req.UserContext != nil {
-		cfg.UserID = req.UserContext.UserID
-	}
+	cfg.UserContext = req.UserContext
 
 	v.applySessionConfig(&cfg, req.Config)
 
-	if v.agentStore != nil && cfg.UserID != "" {
-		agents, err := v.agentStore.GetInstalledAgents(context.Background(), cfg.UserID)
+	userID := ""
+	if cfg.UserContext != nil {
+		userID = cfg.UserContext.UserID
+	}
+
+	if v.agentStore != nil && userID != "" {
+		agents, err := v.agentStore.GetInstalledAgents(context.Background(), userID)
 		if err != nil {
 			v.log.Warn("failed to load user agents, continuing without",
 				"error", err,
-				"user_id", cfg.UserID,
+				"user_id", userID,
 			)
 		} else {
 			cfg.Agents = toRouterAgents(agents)
@@ -62,14 +64,14 @@ func (v *VoiceStarter) Start(req transport.StartRequest) error {
 	if err != nil {
 		v.log.Error("failed to create voice session",
 			"error", err,
-			"user_id", cfg.UserID,
+			"user_id", userID,
 		)
 		return err
 	}
 
 	v.log.Info("voice session started",
 		"session_id", session.SessionID(),
-		"user_id", cfg.UserID,
+		"user_id", userID,
 		"agent_count", len(cfg.Agents),
 		"timestamp", time.Now(),
 	)
@@ -115,15 +117,16 @@ func (v *VoiceStarter) applySessionConfig(cfg *voicesession.Config, sessionCfg *
 	}
 }
 
-func toRouterAgents(agents []*agent.Agent) []router.AgentInfo {
+func toRouterAgents(agents []*agent.InstalledAgent) []router.AgentInfo {
 	result := make([]router.AgentInfo, len(agents))
 	for i, a := range agents {
 		result[i] = router.AgentInfo{
-			ID:           a.ID,
-			Name:         a.Name,
-			Description:  a.Description,
-			Keywords:     a.Keywords,
-			Capabilities: a.Capabilities,
+			ID:            a.ID,
+			Name:          a.Name,
+			Description:   a.Description,
+			Keywords:      a.Keywords,
+			Capabilities:  a.Capabilities,
+			GrantedScopes: a.GrantedScopes,
 		}
 	}
 	return result
