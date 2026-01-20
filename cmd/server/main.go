@@ -11,10 +11,10 @@ import (
 
 // @BasePath /v1
 
-// @securityDefinitions.apikey BearerAuth
+// @securitydefinitions.bearerauth BearerAuth
 // @in header
 // @name Authorization
-// @description JWT token from Better Auth. Format: Bearer <token>
+// @description JWT token from Better Auth
 
 // @securityDefinitions.apikey APIKeyAuth
 // @in header

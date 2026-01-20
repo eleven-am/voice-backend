@@ -67,7 +67,7 @@ func RegisterRoutes(e *echo.Echo, params HandlerParams) {
 
 	params.AgentConnHandler.RegisterRoutes(api.Group("/agents/connect"))
 
-	e.GET("/swagger/*", echoSwagger.WrapHandler)
+	e.GET("/swagger/*", echoSwagger.EchoWrapHandlerV3())
 
 	e.Static("/assets", params.Config.StaticDir)
 	e.GET("/*", func(c echo.Context) error {

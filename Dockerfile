@@ -2,7 +2,7 @@ FROM golang:1.25-alpine AS builder
 
 RUN apk add --no-cache upx
 
-RUN go install github.com/swaggo/swag/cmd/swag@latest
+RUN go install github.com/swaggo/swag/v2/cmd/swag@latest
 
 WORKDIR /app
 
@@ -11,7 +11,7 @@ RUN go mod download
 
 COPY . .
 
-RUN swag init -g cmd/server/main.go -o docs --parseDependency --parseInternal
+RUN swag init -g cmd/server/main.go -o docs --v3.1 --parseDependency --parseInternal
 
 RUN CGO_ENABLED=0 GOOS=linux go build \
     -ldflags="-w -s" \
