@@ -1,7 +1,12 @@
 package realtime
 
 import (
+	"crypto/hmac"
+	"crypto/sha1"
+	"encoding/base64"
+	"strconv"
 	"sync"
+	"time"
 
 	"github.com/pion/webrtc/v4"
 )
@@ -55,7 +60,7 @@ func (m *Manager) NewPeer() (*Peer, error) {
 }
 
 func (m *Manager) iceServers() []webrtc.ICEServer {
-	servers := make([]webrtc.ICEServer, 0, len(m.cfg.ICEServers))
+	servers := make([]webrtc.ICEServer, 0, len(m.cfg.ICEServers)+1)
 	for _, s := range m.cfg.ICEServers {
 		server := webrtc.ICEServer{
 			URLs: s.URLs,
@@ -66,6 +71,16 @@ func (m *Manager) iceServers() []webrtc.ICEServer {
 			server.CredentialType = webrtc.ICECredentialTypePassword
 		}
 		servers = append(servers, server)
+	}
+
+	if m.cfg.TurnServer != "" && m.cfg.TurnSecret != "" {
+		username, credential := m.generateTURNCredentials(m.cfg.TurnTTL)
+		servers = append(servers, webrtc.ICEServer{
+			URLs:           []string{"turn:" + m.cfg.TurnServer},
+			Username:       username,
+			Credential:     credential,
+			CredentialType: webrtc.ICECredentialTypePassword,
+		})
 	}
 
 	if len(servers) == 0 {
@@ -109,7 +124,35 @@ func (m *Manager) RemoveSession(id string) {
 }
 
 func (m *Manager) ICEServers() []ICEServerConfig {
-	return m.cfg.ICEServers
+	servers := make([]ICEServerConfig, 0, len(m.cfg.ICEServers)+1)
+	servers = append(servers, m.cfg.ICEServers...)
+
+	if m.cfg.TurnServer != "" && m.cfg.TurnSecret != "" {
+		ttl := m.cfg.TurnTTL
+		if ttl <= 0 {
+			ttl = 86400
+		}
+
+		username, credential := m.generateTURNCredentials(ttl)
+		servers = append(servers, ICEServerConfig{
+			URLs:       []string{"turn:" + m.cfg.TurnServer},
+			Username:   username,
+			Credential: credential,
+		})
+	}
+
+	return servers
+}
+
+func (m *Manager) generateTURNCredentials(ttlSeconds int) (username, credential string) {
+	expiry := time.Now().Unix() + int64(ttlSeconds)
+	username = strconv.FormatInt(expiry, 10)
+
+	mac := hmac.New(sha1.New, []byte(m.cfg.TurnSecret))
+	mac.Write([]byte(username))
+	credential = base64.StdEncoding.EncodeToString(mac.Sum(nil))
+
+	return username, credential
 }
 
 func (m *Manager) Config() Config {

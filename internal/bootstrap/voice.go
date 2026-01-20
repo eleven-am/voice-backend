@@ -37,6 +37,10 @@ func ProvideRTCConfig(cfg *Config) realtime.Config {
 			Min: cfg.RTCPortMin,
 			Max: cfg.RTCPortMax,
 		},
+		TurnServer: cfg.TurnServer,
+		TurnSecret: cfg.TurnSecret,
+		TurnRealm:  cfg.TurnRealm,
+		TurnTTL:    cfg.TurnTTL,
 	}
 }
 

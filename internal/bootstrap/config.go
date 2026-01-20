@@ -17,6 +17,11 @@ type Config struct {
 	RTCPortMin    int
 	RTCPortMax    int
 
+	TurnServer string
+	TurnSecret string
+	TurnRealm  string
+	TurnTTL    int
+
 	SidecarAddress string
 	SidecarToken   string
 	SidecarTLS     bool
@@ -56,6 +61,11 @@ func LoadConfig() *Config {
 		RTCICEServers: parseICEServers(getEnv("RTC_ICE_SERVERS", "stun:stun.l.google.com:19302")),
 		RTCPortMin:    getEnvInt("RTC_PORT_MIN", 10000),
 		RTCPortMax:    getEnvInt("RTC_PORT_MAX", 20000),
+
+		TurnServer: getEnv("TURN_SERVER", ""),
+		TurnSecret: getEnv("TURN_SECRET", ""),
+		TurnRealm:  getEnv("TURN_REALM", ""),
+		TurnTTL:    getEnvInt("TURN_TTL", 86400),
 
 		SidecarAddress: getEnv("SIDECAR_ADDRESS", "localhost:50051"),
 		SidecarToken:   getEnv("SIDECAR_TOKEN", ""),

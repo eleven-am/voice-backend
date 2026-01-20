@@ -5,6 +5,11 @@ type Config struct {
 	PortRange   PortRange
 	BufferSizes BufferSizes
 	MaxSDPSize  int
+
+	TurnServer string
+	TurnSecret string
+	TurnRealm  string
+	TurnTTL    int
 }
 
 type ICEServerConfig struct {
