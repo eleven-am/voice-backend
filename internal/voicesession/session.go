@@ -44,6 +44,10 @@ type VoiceSession struct {
 
 	visionAnalyzer *vision.Analyzer
 	frameCapturer  *vision.FrameCapturer
+
+	sentenceBuffer *SentenceBuffer
+	ttsQueue       *TTSQueue
+	ttsBridge      *TTSBridge
 }
 
 type Config struct {
@@ -136,6 +140,29 @@ func New(conn transport.Connection, bridge transport.Bridge, cfg Config, log *sl
 		return nil, err
 	}
 	s.tts = ttsClient
+
+	ttsBridge := NewTTSBridge(TTSBridgeConfig{
+		Synth:   ttsClient,
+		VoiceID: cfg.VoiceID,
+		Speed:   cfg.TTSSpeed,
+		Format:  "opus",
+		Conn:    conn,
+		Log:     log,
+	})
+	s.ttsBridge = ttsBridge
+
+	ttsQueue := NewTTSQueue(ttsBridge, log)
+	ttsQueue.SetCallbacks(
+		func() {
+			speechCtrl.OnTTSAudioStart()
+		},
+		func() {
+			speechCtrl.OnTTSAudioEnd()
+			s.arbiter.Reset()
+		},
+	)
+	s.ttsQueue = ttsQueue
+	s.sentenceBuffer = NewSentenceBuffer(log)
 
 	bridge.SetResponseHandler(s.onAgentResponse)
 	if err := bridge.SubscribeToSession(sessionID); err != nil {
@@ -470,30 +497,64 @@ func (s *VoiceSession) onAgentResponse(sessionID string, msg *transport.AgentMes
 		return
 	}
 
-	if msg.Type != transport.MessageTypeResponse {
+	agentID := msg.AgentID
+
+	switch msg.Type {
+	case transport.MessageTypeResponseDelta:
+		s.handleResponseDelta(agentID, msg)
+	case transport.MessageTypeResponseDone:
+		s.handleResponseDone(agentID, msg)
+	case transport.MessageTypeResponse:
+		s.handleCompleteResponse(agentID, msg)
+	}
+}
+
+func (s *VoiceSession) handleResponseDelta(agentID string, msg *transport.AgentMessage) {
+	delta := s.extractDelta(msg.Payload)
+	if delta == "" {
 		return
 	}
 
-	var text string
+	sentences := s.sentenceBuffer.Add(delta)
 
-	switch p := msg.Payload.(type) {
-	case transport.ResponsePayload:
-		text = p.Text
-	case *transport.ResponsePayload:
-		text = p.Text
-	case map[string]any:
-		text, _ = p["text"].(string)
-	default:
+	if len(sentences) > 0 {
+		winner, isNew := s.arbiter.Decide(agentID)
+		if winner != agentID {
+			s.sentenceBuffer.Reset()
+			return
+		}
+
+		if isNew {
+			s.cancelLosers()
+			s.sendEvent(transport.MessageTypeTTSStart, nil)
+		}
+
+		for _, sentence := range sentences {
+			s.ttsQueue.Enqueue(s.ctx, sentence)
+		}
+	}
+}
+
+func (s *VoiceSession) handleResponseDone(agentID string, msg *transport.AgentMessage) {
+	winner, _ := s.arbiter.Decide(agentID)
+	if winner != agentID {
+		s.sentenceBuffer.Reset()
 		return
 	}
 
+	remaining := s.sentenceBuffer.Flush()
+	if remaining != "" {
+		s.ttsQueue.Enqueue(s.ctx, remaining)
+	}
+}
+
+func (s *VoiceSession) handleCompleteResponse(agentID string, msg *transport.AgentMessage) {
+	text := s.extractText(msg.Payload)
 	if text == "" {
 		return
 	}
 
-	agentID := msg.AgentID
 	winner, isNew := s.arbiter.Decide(agentID)
-
 	if winner != agentID {
 		s.log.Debug("agent response ignored, not winner",
 			"agent_id", agentID,
@@ -502,18 +563,7 @@ func (s *VoiceSession) onAgentResponse(sessionID string, msg *transport.AgentMes
 	}
 
 	if isNew {
-		losers := s.arbiter.Losers()
-		for _, loserID := range losers {
-			if err := s.bridge.PublishCancellation(s.ctx, loserID, s.sessionID, "lost_arbitration"); err != nil {
-				s.log.Error("failed to cancel loser agent",
-					"agent_id", loserID,
-					"error", err)
-			}
-			s.sendEvent(transport.MessageTypeInterrupt, transport.AgentCancelledEvent{
-				AgentID: loserID,
-				Reason:  "lost_arbitration",
-			})
-		}
+		s.cancelLosers()
 	}
 
 	s.log.Info("agent response received",
@@ -527,6 +577,47 @@ func (s *VoiceSession) onAgentResponse(sessionID string, msg *transport.AgentMes
 	s.ttsMu.Unlock()
 
 	go s.synthesizeResponse(text, cancelCh)
+}
+
+func (s *VoiceSession) cancelLosers() {
+	losers := s.arbiter.Losers()
+	for _, loserID := range losers {
+		if err := s.bridge.PublishCancellation(s.ctx, loserID, s.sessionID, "lost_arbitration"); err != nil {
+			s.log.Error("failed to cancel loser agent",
+				"agent_id", loserID,
+				"error", err)
+		}
+		s.sendEvent(transport.MessageTypeInterrupt, transport.AgentCancelledEvent{
+			AgentID: loserID,
+			Reason:  "lost_arbitration",
+		})
+	}
+}
+
+func (s *VoiceSession) extractDelta(payload any) string {
+	switch p := payload.(type) {
+	case transport.ResponseDeltaPayload:
+		return p.Delta
+	case *transport.ResponseDeltaPayload:
+		return p.Delta
+	case map[string]any:
+		delta, _ := p["delta"].(string)
+		return delta
+	}
+	return ""
+}
+
+func (s *VoiceSession) extractText(payload any) string {
+	switch p := payload.(type) {
+	case transport.ResponsePayload:
+		return p.Text
+	case *transport.ResponsePayload:
+		return p.Text
+	case map[string]any:
+		text, _ := p["text"].(string)
+		return text
+	}
+	return ""
 }
 
 func (s *VoiceSession) synthesizeResponse(text string, cancelCh <-chan struct{}) {
@@ -578,10 +669,13 @@ func (s *VoiceSession) synthesizeResponse(text string, cancelCh <-chan struct{})
 }
 
 func (s *VoiceSession) stopTTS() {
+	s.ttsQueue.Clear()
+	s.sentenceBuffer.Reset()
+
 	s.ttsMu.Lock()
 	if s.ttsCancelCh != nil {
 		close(s.ttsCancelCh)
-		s.ttsCancelCh = make(chan struct{})
+		s.ttsCancelCh = nil
 	}
 	s.ttsMu.Unlock()
 
@@ -701,6 +795,10 @@ func (s *VoiceSession) sendFrameResponse(agentID, requestID string, payload *tra
 }
 
 func (s *VoiceSession) Close() error {
+	s.ttsQueue.Clear()
+	s.sentenceBuffer.Reset()
+	s.ttsBridge.Stop()
+
 	s.cancel()
 
 	s.bridge.UnsubscribeFromSession(s.sessionID)

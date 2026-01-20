@@ -87,16 +87,19 @@ func (h *AgentHandler) HandleEvent(c echo.Context) error {
 
 	event.AgentID = agentID
 
-	if event.Type == AgentEventResponseTextDelta || event.Type == AgentEventResponseTextDone {
+	switch event.Type {
+	case AgentEventResponseTextDelta:
 		if p, ok := event.Payload.(map[string]any); ok {
-			text := ""
-			if event.Type == AgentEventResponseTextDelta {
-				text, _ = p["delta"].(string)
-			} else {
-				text, _ = p["text"].(string)
+			delta, _ := p["delta"].(string)
+			if delta != "" && event.SessionID != "" {
+				h.publishDelta(c.Request().Context(), event.SessionID, agentID, delta)
 			}
-			if text != "" && event.SessionID != "" {
-				h.publishTextResponse(c.Request().Context(), event.SessionID, agentID, text)
+		}
+	case AgentEventResponseTextDone:
+		if p, ok := event.Payload.(map[string]any); ok {
+			text, _ := p["text"].(string)
+			if event.SessionID != "" {
+				h.publishDone(c.Request().Context(), event.SessionID, agentID, text)
 			}
 		}
 	}
@@ -112,18 +115,31 @@ func (h *AgentHandler) HandleStatus(c echo.Context) error {
 	})
 }
 
-func (h *AgentHandler) publishTextResponse(ctx context.Context, sessionID, agentID, text string) {
+func (h *AgentHandler) publishDelta(ctx context.Context, sessionID, agentID, delta string) {
 	msg := &GatewayMessage{
-		Type:      MessageTypeResponse,
+		Type:      MessageTypeResponseDelta,
+		SessionID: sessionID,
+		AgentID:   agentID,
+		Payload: map[string]any{
+			"delta": delta,
+		},
+	}
+	if err := h.bridge.PublishResponse(ctx, msg); err != nil {
+		h.logger.Error("failed to publish delta", "error", err, "session_id", sessionID)
+	}
+}
+
+func (h *AgentHandler) publishDone(ctx context.Context, sessionID, agentID, text string) {
+	msg := &GatewayMessage{
+		Type:      MessageTypeResponseDone,
 		SessionID: sessionID,
 		AgentID:   agentID,
 		Payload: map[string]any{
 			"text": text,
 		},
 	}
-
 	if err := h.bridge.PublishResponse(ctx, msg); err != nil {
-		h.logger.Error("failed to publish response", "error", err, "session_id", sessionID)
+		h.logger.Error("failed to publish done", "error", err, "session_id", sessionID)
 	}
 }
 

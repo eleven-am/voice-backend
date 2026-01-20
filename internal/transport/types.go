@@ -9,23 +9,25 @@ import (
 type MessageType string
 
 const (
-	MessageTypeUtterance     MessageType = "utterance"
-	MessageTypeResponse      MessageType = "response"
-	MessageTypeSessionStart  MessageType = "session_start"
-	MessageTypeSessionEnd    MessageType = "session_end"
-	MessageTypeAgentStatus   MessageType = "agent_status"
-	MessageTypeError         MessageType = "error"
-	MessageTypeVoiceStart    MessageType = "voice_start"
-	MessageTypeVoiceEnd      MessageType = "voice_end"
-	MessageTypeAudioFrame    MessageType = "audio_frame"
-	MessageTypeSpeechStart   MessageType = "speech_start"
-	MessageTypeSpeechEnd     MessageType = "speech_end"
-	MessageTypeTranscript    MessageType = "transcript"
-	MessageTypeTTSStart      MessageType = "tts_start"
-	MessageTypeTTSEnd        MessageType = "tts_end"
-	MessageTypeInterrupt     MessageType = "interrupt"
-	MessageTypeFrameRequest  MessageType = "frame_request"
-	MessageTypeFrameResponse MessageType = "frame_response"
+	MessageTypeUtterance      MessageType = "utterance"
+	MessageTypeResponse       MessageType = "response"
+	MessageTypeResponseDelta  MessageType = "response.delta"
+	MessageTypeResponseDone   MessageType = "response.done"
+	MessageTypeSessionStart   MessageType = "session_start"
+	MessageTypeSessionEnd     MessageType = "session_end"
+	MessageTypeAgentStatus    MessageType = "agent_status"
+	MessageTypeError          MessageType = "error"
+	MessageTypeVoiceStart     MessageType = "voice_start"
+	MessageTypeVoiceEnd       MessageType = "voice_end"
+	MessageTypeAudioFrame     MessageType = "audio_frame"
+	MessageTypeSpeechStart    MessageType = "speech_start"
+	MessageTypeSpeechEnd      MessageType = "speech_end"
+	MessageTypeTranscript     MessageType = "transcript"
+	MessageTypeTTSStart       MessageType = "tts_start"
+	MessageTypeTTSEnd         MessageType = "tts_end"
+	MessageTypeInterrupt      MessageType = "interrupt"
+	MessageTypeFrameRequest   MessageType = "frame_request"
+	MessageTypeFrameResponse  MessageType = "frame_response"
 )
 
 type AgentMessage struct {
@@ -59,6 +61,16 @@ type VisionContext struct {
 }
 
 type ResponsePayload struct {
+	Text      string `json:"text"`
+	FromAgent string `json:"from_agent"`
+}
+
+type ResponseDeltaPayload struct {
+	Delta     string `json:"delta"`
+	FromAgent string `json:"from_agent"`
+}
+
+type ResponseDonePayload struct {
 	Text      string `json:"text"`
 	FromAgent string `json:"from_agent"`
 }
