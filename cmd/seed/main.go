@@ -8,8 +8,10 @@ import (
 
 	"github.com/eleven-am/voice-backend/internal/agent"
 	"github.com/eleven-am/voice-backend/internal/apikey"
+	"github.com/eleven-am/voice-backend/internal/auth"
 	"github.com/eleven-am/voice-backend/internal/shared"
 	"github.com/eleven-am/voice-backend/internal/user"
+	"github.com/golang-jwt/jwt/v5"
 	"github.com/google/uuid"
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
@@ -76,17 +78,30 @@ func main() {
 		os.Exit(1)
 	}
 
+	hmacKey := os.Getenv("HMAC_KEY")
+	if hmacKey == "" {
+		hmacKey = "change-me-in-production"
+	}
+
+	token, err := generateJWT(testUser, hmacKey)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Failed to generate JWT: %v\n", err)
+		os.Exit(1)
+	}
+
 	fmt.Println("")
 	fmt.Println("=== Test Data Created ===")
 	fmt.Println("")
-	fmt.Printf("JWT User ID (sub): %s\n", testUser.ID)
+	fmt.Printf("User ID: %s\n", testUser.ID)
 	fmt.Printf("Agent ID: %s\n", testAgent.ID)
 	fmt.Printf("API Key ID: %s\n", apiKey.ID)
 	fmt.Println("")
 	fmt.Println("=== Agent API Key ===")
 	fmt.Printf("%s\n", secret)
 	fmt.Println("")
-	fmt.Println("Use this to connect an agent service to the gateway.")
+	fmt.Println("=== User JWT (valid 24h) ===")
+	fmt.Printf("%s\n", token)
+	fmt.Println("")
 }
 
 func seedUser(db *gorm.DB) (*user.User, error) {
@@ -175,4 +190,20 @@ func seedAPIKey(ctx context.Context, store *apikey.Store, agentID string) (*apik
 	}
 
 	return key, secret, nil
+}
+
+func generateJWT(u *user.User, hmacKey string) (string, error) {
+	claims := auth.Claims{
+		RegisteredClaims: jwt.RegisteredClaims{
+			Subject:   u.ID,
+			IssuedAt:  jwt.NewNumericDate(time.Now()),
+			ExpiresAt: jwt.NewNumericDate(time.Now().Add(24 * time.Hour)),
+		},
+		UserID: u.ID,
+		Email:  u.Email,
+		Name:   u.Name,
+	}
+
+	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
+	return token.SignedString([]byte(hmacKey))
 }

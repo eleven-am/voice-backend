@@ -10,17 +10,16 @@ type Config struct {
 	ServerAddr string
 	GRPCAddr   string
 
-	JWTSecret   []byte
+	HMACKey     []byte
 	CORSOrigins []string
 
 	RTCICEServers []ICEServerConfig
 	RTCPortMin    int
 	RTCPortMax    int
 
-	STTAddress   string
-	TTSAddress   string
-	SidecarToken string
-	SidecarTLS   bool
+	SidecarAddress string
+	SidecarToken   string
+	SidecarTLS     bool
 
 	DatabaseDSN string
 
@@ -51,17 +50,16 @@ func LoadConfig() *Config {
 		ServerAddr: getEnv("SERVER_ADDR", ":8080"),
 		GRPCAddr:   getEnv("GRPC_ADDR", ":50051"),
 
-		JWTSecret:   []byte(getEnv("JWT_SECRET", "change-me-in-production")),
+		HMACKey:     []byte(getEnv("HMAC_KEY", "change-me-in-production")),
 		CORSOrigins: parseCORSOrigins(getEnv("CORS_ORIGINS", "")),
 
 		RTCICEServers: parseICEServers(getEnv("RTC_ICE_SERVERS", "stun:stun.l.google.com:19302")),
 		RTCPortMin:    getEnvInt("RTC_PORT_MIN", 10000),
 		RTCPortMax:    getEnvInt("RTC_PORT_MAX", 20000),
 
-		STTAddress:   getEnv("STT_ADDRESS", "localhost:50052"),
-		TTSAddress:   getEnv("TTS_ADDRESS", "localhost:50053"),
-		SidecarToken: getEnv("SIDECAR_TOKEN", ""),
-		SidecarTLS:   getEnv("SIDECAR_TLS", "false") == "true",
+		SidecarAddress: getEnv("SIDECAR_ADDRESS", "localhost:50051"),
+		SidecarToken:   getEnv("SIDECAR_TOKEN", ""),
+		SidecarTLS:     getEnv("SIDECAR_TLS", "false") == "true",
 
 		DatabaseDSN: getEnv("DATABASE_DSN", ""),
 

@@ -42,14 +42,14 @@ func ProvideRTCConfig(cfg *Config) realtime.Config {
 
 func ProvideSTTConfig(cfg *Config) transcription.Config {
 	return transcription.Config{
-		Address: cfg.STTAddress,
+		Address: cfg.SidecarAddress,
 		Token:   cfg.SidecarToken,
 	}
 }
 
 func ProvideTTSConfig(cfg *Config) synthesis.Config {
 	return synthesis.Config{
-		Address: cfg.TTSAddress,
+		Address: cfg.SidecarAddress,
 		Token:   cfg.SidecarToken,
 	}
 }
@@ -77,11 +77,21 @@ func ProvideVoiceSessionManager(bridge *gateway.Bridge, rtr *router.SmartRouter,
 	return voicesession.NewManager(cfg)
 }
 
-func ProvideVoiceStarter(sessionMgr *voicesession.Manager, agentStore *agent.Store, logger *slog.Logger) *gateway.VoiceStarter {
+func ProvideVoiceStarter(
+	sessionMgr *voicesession.Manager,
+	agentStore *agent.Store,
+	sttConfig transcription.Config,
+	ttsConfig synthesis.Config,
+	logger *slog.Logger,
+) *gateway.VoiceStarter {
 	return gateway.NewVoiceStarter(gateway.VoiceStarterConfig{
 		SessionManager: sessionMgr,
 		AgentStore:     agentStore,
 		Log:            logger,
+		DefaultConfig: voicesession.Config{
+			STTConfig: sttConfig,
+			TTSConfig: ttsConfig,
+		},
 	})
 }
 

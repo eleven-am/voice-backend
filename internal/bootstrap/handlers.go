@@ -82,7 +82,7 @@ func ProvideLogger() *slog.Logger {
 }
 
 func ProvideJWTValidator(cfg *Config) *auth.JWTValidator {
-	return auth.NewJWTValidator(cfg.JWTSecret)
+	return auth.NewJWTValidator(cfg.HMACKey)
 }
 
 func ProvideJWTMiddleware(validator *auth.JWTValidator, userStore *user.Store) *auth.Middleware {
