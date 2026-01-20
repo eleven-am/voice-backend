@@ -8,6 +8,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/eleven-am/voice-backend/internal/shared"
 	"github.com/eleven-am/voice-backend/internal/transcription/sttpb"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/connectivity"
@@ -38,7 +39,7 @@ type Client struct {
 	opts           SessionOptions
 	readyCh        chan struct{}
 	errCh          chan error
-	backoff        BackoffConfig
+	backoff        shared.BackoffConfig
 	reconnectState reconnectState
 	reconnectCh    chan error
 	maxMessageSize int
@@ -374,14 +375,14 @@ func (c *Client) Close() error {
 	return nil
 }
 
-func (c *Client) backoffConfig() BackoffConfig {
+func (c *Client) backoffConfig() shared.BackoffConfig {
 	if c.backoff.Initial == 0 && c.backoff.MaxAttempts == 0 && c.backoff.MaxDelay == 0 {
-		c.backoff = normalizeBackoff(BackoffConfig{})
+		c.backoff = normalizeBackoff(shared.BackoffConfig{})
 	}
 	return c.backoff
 }
 
-func normalizeBackoff(cfg BackoffConfig) BackoffConfig {
+func normalizeBackoff(cfg shared.BackoffConfig) shared.BackoffConfig {
 	if cfg.Initial <= 0 {
 		cfg.Initial = 100 * time.Millisecond
 	}

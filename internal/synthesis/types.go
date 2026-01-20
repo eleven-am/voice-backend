@@ -1,8 +1,7 @@
 package synthesis
 
 import (
-	"time"
-
+	"github.com/eleven-am/voice-backend/internal/shared"
 	"google.golang.org/grpc/credentials"
 )
 
@@ -19,13 +18,7 @@ type Config struct {
 	Address  string
 	Token    string
 	TLSCreds credentials.TransportCredentials
-	Backoff  BackoffConfig
-}
-
-type BackoffConfig struct {
-	Initial     time.Duration
-	MaxAttempts int
-	MaxDelay    time.Duration
+	Backoff  shared.BackoffConfig
 }
 
 type Request struct {

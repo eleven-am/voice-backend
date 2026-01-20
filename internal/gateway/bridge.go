@@ -376,6 +376,12 @@ func (b *Bridge) subscribeToSessionResponses(ctx context.Context, sessionID stri
 				continue
 			}
 
+			b.logger.Debug("received agent message",
+				"session_id", sessionID,
+				"agent_id", agentMsg.AgentID,
+				"type", agentMsg.Type,
+				"request_id", agentMsg.RequestID)
+
 			b.mu.RLock()
 			handler := b.responseHandler
 			b.mu.RUnlock()

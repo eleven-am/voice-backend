@@ -5,6 +5,7 @@ from dataclasses import dataclass, field
 
 import numpy as np
 import torch
+
 from numpy.typing import NDArray
 
 from sidecar.domain.types import SpeechStarted, SpeechStopped
@@ -13,7 +14,7 @@ logger = logging.getLogger(__name__)
 
 SAMPLE_RATE = 16000
 MS_SAMPLE_RATE = SAMPLE_RATE // 1000
-VAD_WINDOW_SIZE_SAMPLES = 3000 * MS_SAMPLE_RATE
+VAD_WINDOW_SIZE_SAMPLES = 1000 * MS_SAMPLE_RATE
 
 
 @dataclass
@@ -58,13 +59,17 @@ class SileroVAD:
             if SileroVAD._model is None:
                 logger.info("Loading Silero VAD model from torch.hub")
                 model, utils = torch.hub.load(
-                    repo_or_dir="snakers4/silero-vad",
+                    repo_or_dir="snakers4/silero-vad:master",
                     model="silero_vad",
                     force_reload=False,
                     onnx=False,
                 )
                 SileroVAD._model = model
                 SileroVAD._get_speech_timestamps = utils[0]
+                warmup_audio = torch.zeros(SAMPLE_RATE)
+                SileroVAD._get_speech_timestamps(
+                    warmup_audio, SileroVAD._model, sampling_rate=SAMPLE_RATE
+                )
                 logger.info("Silero VAD model loaded")
 
     def get_speech_timestamps(

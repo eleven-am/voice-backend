@@ -98,9 +98,9 @@ class EOUModel:
             logger.warning("EOU model returned empty output")
             return 0.0
 
-        logits = outputs[0][0]
-        if len(logits) < 2:
-            logger.warning(f"EOU model returned unexpected logits shape: {len(logits)}")
+        logits = np.atleast_1d(outputs[0][0])
+        if logits.size < 2:
+            logger.warning(f"EOU model returned unexpected logits shape: {logits.shape}")
             return 0.0
 
         exp_logits = np.exp(logits - np.max(logits))

@@ -11,8 +11,8 @@ type MessageType string
 const (
 	MessageTypeUtterance      MessageType = "utterance"
 	MessageTypeResponse       MessageType = "response"
-	MessageTypeResponseDelta  MessageType = "response.delta"
-	MessageTypeResponseDone   MessageType = "response.done"
+	MessageTypeResponseDelta  MessageType = "response.text.delta"
+	MessageTypeResponseDone   MessageType = "response.text.done"
 	MessageTypeSessionStart   MessageType = "session_start"
 	MessageTypeSessionEnd     MessageType = "session_end"
 	MessageTypeAgentStatus    MessageType = "agent_status"

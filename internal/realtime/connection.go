@@ -45,7 +45,7 @@ func NewConn(peer *Peer, cfg Config, log *slog.Logger) (*Conn, error) {
 
 	bufSize := cfg.BufferSizes.AudioFrames
 	if bufSize <= 0 {
-		bufSize = 128
+		bufSize = 4096
 	}
 
 	eventBufSize := cfg.BufferSizes.Events
@@ -108,9 +108,15 @@ func (c *Conn) SetupDataChannel(dc *webrtc.DataChannel) {
 		c.connected = true
 		c.mu.Unlock()
 		c.output.Start()
+		c.log.Debug("data channel opened")
 	})
 
 	dc.OnMessage(func(msg webrtc.DataChannelMessage) {
+		if msg.IsString {
+			c.log.Debug("ws message", "bytes", len(msg.Data))
+		} else {
+			c.log.Debug("ws binary message", "bytes", len(msg.Data))
+		}
 		if msg.IsString {
 			c.handleMessage(msg.Data)
 		}
@@ -207,11 +213,14 @@ func (c *Conn) Send(ctx context.Context, event transport.ServerEvent) error {
 
 func (c *Conn) SendAudio(ctx context.Context, chunk transport.AudioChunk) error {
 	c.mu.RLock()
-	if !c.connected || c.paused || c.ttsStopped {
-		c.mu.RUnlock()
+	connected := c.connected
+	paused := c.paused
+	ttsStopped := c.ttsStopped
+	c.mu.RUnlock()
+
+	if !connected || paused || ttsStopped {
 		return nil
 	}
-	c.mu.RUnlock()
 
 	if len(chunk.Data) == 0 {
 		return nil
@@ -222,7 +231,9 @@ func (c *Conn) SendAudio(ctx context.Context, chunk transport.AudioChunk) error 
 		return nil
 	}
 
-	return c.output.Enqueue(chunk.Data, FrameSize)
+	samples, duration := OpusPacketDuration(chunk.Data, SampleRate)
+
+	return c.output.Enqueue(chunk.Data, samples, duration)
 }
 
 func (c *Conn) Messages() <-chan transport.ClientEnvelope {
@@ -264,6 +275,10 @@ func (c *Conn) Close() error {
 
 func (c *Conn) FlushAudioQueue() int {
 	return c.output.Flush()
+}
+
+func (c *Conn) WaitForAudioDrain() {
+	c.output.WaitForDrain()
 }
 
 func (c *Conn) SetBackpressureCallback(cb transport.BackpressureCallback) {

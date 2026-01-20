@@ -6,6 +6,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"time"
 )
 
 type StringSlice []string
@@ -73,3 +74,9 @@ const (
 	AgentCategoryHealth        AgentCategory = "health"
 	AgentCategoryFinance       AgentCategory = "finance"
 )
+
+type BackoffConfig struct {
+	Initial     time.Duration
+	MaxAttempts int
+	MaxDelay    time.Duration
+}

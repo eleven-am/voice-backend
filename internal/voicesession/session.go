@@ -154,11 +154,14 @@ func New(conn transport.Connection, bridge transport.Bridge, cfg Config, log *sl
 	ttsQueue := NewTTSQueue(ttsBridge, log)
 	ttsQueue.SetCallbacks(
 		func() {
+			log.Debug("TTS audio start callback", "prev_state", speechCtrl.State())
 			speechCtrl.OnTTSAudioStart()
+			log.Debug("TTS audio start callback done", "new_state", speechCtrl.State())
 		},
 		func() {
+			log.Debug("TTS audio end callback", "prev_state", speechCtrl.State())
 			speechCtrl.OnTTSAudioEnd()
-			s.arbiter.Reset()
+			log.Debug("TTS audio end callback done", "new_state", speechCtrl.State())
 		},
 	)
 	s.ttsQueue = ttsQueue
@@ -219,9 +222,11 @@ func (s *VoiceSession) onSTTReady() {
 }
 
 func (s *VoiceSession) onSpeechStart() {
-	s.log.Debug("speech started")
+	state := s.speechCtrl.State()
+	s.log.Debug("speech started", "controller_state", state)
 	s.sendEvent(transport.MessageTypeSpeechStart, nil)
 	actions := s.speechCtrl.OnUserSpeechStart(time.Now())
+	s.log.Debug("speech actions", "actions", len(actions), "new_state", s.speechCtrl.State())
 	s.executeActions(actions)
 
 	if s.visionAnalyzer != nil {
@@ -492,6 +497,11 @@ func (s *VoiceSession) onAgentResponse(sessionID string, msg *transport.AgentMes
 		return
 	}
 
+	s.log.Debug("agent message received",
+		"agent_id", msg.AgentID,
+		"type", msg.Type,
+		"request_id", msg.RequestID)
+
 	if msg.Type == transport.MessageTypeFrameRequest {
 		s.handleFrameRequest(msg)
 		return
@@ -512,13 +522,17 @@ func (s *VoiceSession) onAgentResponse(sessionID string, msg *transport.AgentMes
 func (s *VoiceSession) handleResponseDelta(agentID string, msg *transport.AgentMessage) {
 	delta := s.extractDelta(msg.Payload)
 	if delta == "" {
+		s.log.Debug("response delta empty", "agent_id", agentID)
 		return
 	}
+
+	s.log.Debug("response delta", "agent_id", agentID, "len", len(delta), "text", delta)
 
 	sentences := s.sentenceBuffer.Add(delta)
 
 	if len(sentences) > 0 {
 		winner, isNew := s.arbiter.Decide(agentID)
+
 		if winner != agentID {
 			s.sentenceBuffer.Reset()
 			return
@@ -536,21 +550,30 @@ func (s *VoiceSession) handleResponseDelta(agentID string, msg *transport.AgentM
 }
 
 func (s *VoiceSession) handleResponseDone(agentID string, msg *transport.AgentMessage) {
-	winner, _ := s.arbiter.Decide(agentID)
+	winner := s.arbiter.Winner()
+	if winner == "" {
+		winner, _ = s.arbiter.Decide(agentID)
+	}
 	if winner != agentID {
 		s.sentenceBuffer.Reset()
+		s.log.Debug("response done ignored, not winner", "agent_id", agentID, "winner", winner)
 		return
 	}
 
 	remaining := s.sentenceBuffer.Flush()
+
 	if remaining != "" {
+		s.log.Debug("response done, enqueue remaining", "agent_id", agentID, "len", len(remaining), "text", remaining)
 		s.ttsQueue.Enqueue(s.ctx, remaining)
 	}
+
+	s.arbiter.Reset()
 }
 
 func (s *VoiceSession) handleCompleteResponse(agentID string, msg *transport.AgentMessage) {
 	text := s.extractText(msg.Payload)
 	if text == "" {
+		s.log.Debug("complete response empty", "agent_id", agentID)
 		return
 	}
 
@@ -637,6 +660,7 @@ func (s *VoiceSession) synthesizeResponse(text string, cancelCh <-chan struct{})
 			s.log.Debug("TTS ready", "sample_rate", sampleRate, "voice_id", voiceID)
 		},
 		OnAudio: func(data []byte, format string, sampleRate uint32) {
+			s.log.Debug("TTS audio chunk", "bytes", len(data), "format", format, "sample_rate", sampleRate)
 			chunk := transport.AudioChunk{
 				Data:       data,
 				Format:     format,
@@ -647,7 +671,10 @@ func (s *VoiceSession) synthesizeResponse(text string, cancelCh <-chan struct{})
 			}
 		},
 		OnDone: func(audioDurationMs, processingDurationMs, textLength uint64) {
-			s.log.Debug("TTS done", "audio_duration_ms", audioDurationMs)
+			s.log.Debug("TTS done, waiting for drain", "audio_duration_ms", audioDurationMs)
+			if ctrl, ok := s.conn.(transport.OutputController); ok {
+				ctrl.WaitForAudioDrain()
+			}
 			s.speechCtrl.OnTTSAudioEnd()
 			s.sendEvent(transport.MessageTypeTTSEnd, nil)
 			s.arbiter.Reset()

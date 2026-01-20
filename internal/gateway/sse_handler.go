@@ -88,14 +88,14 @@ func (h *AgentHandler) HandleEvent(c echo.Context) error {
 	event.AgentID = agentID
 
 	switch event.Type {
-	case AgentEventResponseTextDelta:
+	case MessageTypeResponseDelta:
 		if p, ok := event.Payload.(map[string]any); ok {
 			delta, _ := p["delta"].(string)
 			if delta != "" && event.SessionID != "" {
 				h.publishDelta(c.Request().Context(), event.SessionID, agentID, delta)
 			}
 		}
-	case AgentEventResponseTextDone:
+	case MessageTypeResponseDone:
 		if p, ok := event.Payload.(map[string]any); ok {
 			text, _ := p["text"].(string)
 			if event.SessionID != "" {

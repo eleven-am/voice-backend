@@ -4,6 +4,8 @@ import (
 	"encoding/json"
 	"testing"
 	"time"
+
+	"github.com/eleven-am/voice-backend/internal/transport"
 )
 
 func TestConfig_Defaults(t *testing.T) {
@@ -69,7 +71,7 @@ func TestFrame_Fields(t *testing.T) {
 }
 
 func TestVisionContext_JSONSerialization(t *testing.T) {
-	ctx := VisionContext{
+	ctx := transport.VisionContext{
 		Description: "A screenshot of code editor",
 		Timestamp:   1234567890,
 		Available:   true,
@@ -80,7 +82,7 @@ func TestVisionContext_JSONSerialization(t *testing.T) {
 		t.Fatalf("failed to marshal: %v", err)
 	}
 
-	var decoded VisionContext
+	var decoded transport.VisionContext
 	if err := json.Unmarshal(data, &decoded); err != nil {
 		t.Fatalf("failed to unmarshal: %v", err)
 	}
@@ -97,7 +99,7 @@ func TestVisionContext_JSONSerialization(t *testing.T) {
 }
 
 func TestVisionContext_OmitEmpty(t *testing.T) {
-	ctx := VisionContext{Available: false}
+	ctx := transport.VisionContext{Available: false}
 
 	data, err := json.Marshal(ctx)
 	if err != nil {
@@ -164,7 +166,7 @@ func TestFrameRequest_Fields(t *testing.T) {
 
 func TestFrameResponse_JSONSerialization(t *testing.T) {
 	resp := FrameResponse{
-		Frames: []FrameData{
+		Frames: []transport.FrameData{
 			{Timestamp: 1000, Base64: "abc123"},
 			{Timestamp: 2000, Base64: "def456"},
 		},
@@ -212,7 +214,7 @@ func TestFrameResponse_Descriptions(t *testing.T) {
 }
 
 func TestFrameData_JSONSerialization(t *testing.T) {
-	fd := FrameData{
+	fd := transport.FrameData{
 		Timestamp: 1234567890,
 		Base64:    "SGVsbG8gV29ybGQ=",
 	}
@@ -222,7 +224,7 @@ func TestFrameData_JSONSerialization(t *testing.T) {
 		t.Fatalf("failed to marshal: %v", err)
 	}
 
-	var decoded FrameData
+	var decoded transport.FrameData
 	if err := json.Unmarshal(data, &decoded); err != nil {
 		t.Fatalf("failed to unmarshal: %v", err)
 	}
@@ -236,7 +238,7 @@ func TestFrameData_JSONSerialization(t *testing.T) {
 }
 
 func TestFrameData_OmitEmptyBase64(t *testing.T) {
-	fd := FrameData{Timestamp: 1000}
+	fd := transport.FrameData{Timestamp: 1000}
 
 	data, err := json.Marshal(fd)
 	if err != nil {

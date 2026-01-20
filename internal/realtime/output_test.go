@@ -36,21 +36,21 @@ func TestNewOutputWorker(t *testing.T) {
 
 func TestNewOutputWorker_DefaultBufferSize(t *testing.T) {
 	worker := NewOutputWorker(nil, 0)
-	if cap(worker.queue) != 128 {
-		t.Errorf("expected default buffer size 128, got %d", cap(worker.queue))
+	if cap(worker.queue) != 4096 {
+		t.Errorf("expected default buffer size 4096, got %d", cap(worker.queue))
 	}
 }
 
 func TestNewOutputWorker_NegativeBufferSize(t *testing.T) {
 	worker := NewOutputWorker(nil, -10)
-	if cap(worker.queue) != 128 {
-		t.Errorf("expected default buffer size 128 for negative, got %d", cap(worker.queue))
+	if cap(worker.queue) != 4096 {
+		t.Errorf("expected default buffer size 4096 for negative, got %d", cap(worker.queue))
 	}
 }
 
 func TestOutputWorker_Enqueue(t *testing.T) {
 	worker := NewOutputWorker(nil, 10)
-	err := worker.Enqueue([]byte{1, 2, 3}, 960)
+	err := worker.Enqueue([]byte{1, 2, 3}, 960, 20*time.Millisecond)
 	if err != nil {
 		t.Errorf("Enqueue should not error: %v", err)
 	}
@@ -61,9 +61,9 @@ func TestOutputWorker_Enqueue(t *testing.T) {
 
 func TestOutputWorker_Enqueue_BufferFull(t *testing.T) {
 	worker := NewOutputWorker(nil, 2)
-	worker.Enqueue([]byte{1}, 960)
-	worker.Enqueue([]byte{2}, 960)
-	err := worker.Enqueue([]byte{3}, 960)
+	worker.Enqueue([]byte{1}, 960, 20*time.Millisecond)
+	worker.Enqueue([]byte{2}, 960, 20*time.Millisecond)
+	err := worker.Enqueue([]byte{3}, 960, 20*time.Millisecond)
 	if err != nil {
 		t.Errorf("Enqueue should not error even when full: %v", err)
 	}
@@ -81,8 +81,8 @@ func TestOutputWorker_Enqueue_BackpressureCallback(t *testing.T) {
 			t.Errorf("expected dropped=1, got %d", dropped)
 		}
 	})
-	worker.Enqueue([]byte{1}, 960)
-	worker.Enqueue([]byte{2}, 960)
+	worker.Enqueue([]byte{1}, 960, 20*time.Millisecond)
+	worker.Enqueue([]byte{2}, 960, 20*time.Millisecond)
 	if !callbackCalled {
 		t.Error("backpressure callback should have been called")
 	}
@@ -105,9 +105,9 @@ func TestOutputWorker_PauseResume(t *testing.T) {
 
 func TestOutputWorker_Flush(t *testing.T) {
 	worker := NewOutputWorker(nil, 10)
-	worker.Enqueue([]byte{1}, 960)
-	worker.Enqueue([]byte{2}, 960)
-	worker.Enqueue([]byte{3}, 960)
+	worker.Enqueue([]byte{1}, 960, 20*time.Millisecond)
+	worker.Enqueue([]byte{2}, 960, 20*time.Millisecond)
+	worker.Enqueue([]byte{3}, 960, 20*time.Millisecond)
 	count := worker.Flush()
 	if count != 3 {
 		t.Errorf("expected 3 flushed, got %d", count)
@@ -123,6 +123,34 @@ func TestOutputWorker_Flush_Empty(t *testing.T) {
 	if count != 0 {
 		t.Errorf("expected 0 flushed from empty queue, got %d", count)
 	}
+}
+
+func TestOutputWorker_ContinuesAfterFlush(t *testing.T) {
+	worker := NewOutputWorker(nil, 10)
+	worker.Pause()
+	worker.Start()
+	time.Sleep(10 * time.Millisecond)
+
+	worker.Enqueue([]byte{1}, 960, 1*time.Millisecond)
+	worker.Enqueue([]byte{2}, 960, 1*time.Millisecond)
+	worker.Flush()
+
+	time.Sleep(20 * time.Millisecond)
+
+	worker.Enqueue([]byte{3}, 960, 1*time.Millisecond)
+	worker.Enqueue([]byte{4}, 960, 1*time.Millisecond)
+
+	time.Sleep(50 * time.Millisecond)
+
+	worker.pendingMu.Lock()
+	pending := worker.pending
+	worker.pendingMu.Unlock()
+
+	if pending != 0 {
+		t.Errorf("worker should have processed frames after flush (discarded when paused), pending=%d", pending)
+	}
+
+	worker.Stop()
 }
 
 func TestOutputWorker_SetBackpressureCallback(t *testing.T) {
@@ -151,8 +179,8 @@ func TestOutputWorker_Stop(t *testing.T) {
 
 func TestOutputWorker_drain(t *testing.T) {
 	worker := NewOutputWorker(nil, 10)
-	worker.Enqueue([]byte{1}, 960)
-	worker.Enqueue([]byte{2}, 960)
+	worker.Enqueue([]byte{1}, 960, 20*time.Millisecond)
+	worker.Enqueue([]byte{2}, 960, 20*time.Millisecond)
 	count := worker.drain()
 	if count != 2 {
 		t.Errorf("expected 2 drained, got %d", count)

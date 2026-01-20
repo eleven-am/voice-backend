@@ -146,18 +146,13 @@ func (c *WSAgentConnection) readPump(ctx context.Context, bridge *Bridge) {
 
 		msg.AgentID = c.agentID
 
-		if msg.Type == MessageTypeResponse && msg.SessionID != "" {
-			if err := bridge.PublishResponse(ctx, &msg); err != nil {
-				c.logger.Error("failed to publish response", "error", err)
+		switch msg.Type {
+		case MessageTypeResponse, MessageTypeResponseDelta, MessageTypeResponseDone:
+			if msg.SessionID != "" {
+				if err := bridge.PublishResponse(ctx, &msg); err != nil {
+					c.logger.Error("failed to publish response", "error", err, "type", msg.Type)
+				}
 			}
-		}
-
-		select {
-		case c.messages <- &msg:
-		case <-ctx.Done():
-			return
-		default:
-			c.logger.Warn("message buffer full, dropping message")
 		}
 	}
 }

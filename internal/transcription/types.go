@@ -1,8 +1,7 @@
 package transcription
 
 import (
-	"time"
-
+	"github.com/eleven-am/voice-backend/internal/shared"
 	"github.com/eleven-am/voice-backend/internal/transcription/sttpb"
 	"google.golang.org/grpc/credentials"
 )
@@ -31,7 +30,7 @@ type Config struct {
 	Address        string
 	Token          string
 	TLSCreds       credentials.TransportCredentials
-	Backoff        BackoffConfig
+	Backoff        shared.BackoffConfig
 	MaxMessageSize int
 }
 
@@ -46,10 +45,4 @@ type SessionOptions struct {
 	InitialPrompt    string
 	Task             string
 	Temperature      float32
-}
-
-type BackoffConfig struct {
-	Initial     time.Duration
-	MaxAttempts int
-	MaxDelay    time.Duration
 }

@@ -5,6 +5,7 @@ import (
 	"crypto/sha1"
 	"encoding/base64"
 	"strconv"
+	"strings"
 	"sync"
 	"time"
 
@@ -75,12 +76,18 @@ func (m *Manager) iceServers() []webrtc.ICEServer {
 
 	if m.cfg.TurnServer != "" && m.cfg.TurnSecret != "" {
 		username, credential := m.generateTURNCredentials(m.cfg.TurnTTL)
-		servers = append(servers, webrtc.ICEServer{
-			URLs:           []string{"turn:" + m.cfg.TurnServer},
-			Username:       username,
-			Credential:     credential,
-			CredentialType: webrtc.ICECredentialTypePassword,
-		})
+		for _, server := range strings.Split(m.cfg.TurnServer, ",") {
+			server = strings.TrimSpace(server)
+			if server == "" {
+				continue
+			}
+			servers = append(servers, webrtc.ICEServer{
+				URLs:           []string{"turn:" + server},
+				Username:       username,
+				Credential:     credential,
+				CredentialType: webrtc.ICECredentialTypePassword,
+			})
+		}
 	}
 
 	if len(servers) == 0 {
@@ -134,11 +141,17 @@ func (m *Manager) ICEServers() []ICEServerConfig {
 		}
 
 		username, credential := m.generateTURNCredentials(ttl)
-		servers = append(servers, ICEServerConfig{
-			URLs:       []string{"turn:" + m.cfg.TurnServer},
-			Username:   username,
-			Credential: credential,
-		})
+		for _, server := range strings.Split(m.cfg.TurnServer, ",") {
+			server = strings.TrimSpace(server)
+			if server == "" {
+				continue
+			}
+			servers = append(servers, ICEServerConfig{
+				URLs:       []string{"turn:" + server},
+				Username:   username,
+				Credential: credential,
+			})
+		}
 	}
 
 	return servers

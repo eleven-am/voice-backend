@@ -80,6 +80,8 @@ func (v *VoiceStarter) Start(req transport.StartRequest) error {
 }
 
 func (v *VoiceStarter) applySessionConfig(cfg *voicesession.Config, sessionCfg *transport.SessionConfig) {
+	cfg.BargeInPolicy.AllowWhileSpeaking = true
+
 	if sessionCfg == nil {
 		return
 	}
@@ -107,7 +109,6 @@ func (v *VoiceStarter) applySessionConfig(cfg *voicesession.Config, sessionCfg *
 	}
 
 	if sessionCfg.TurnDetection != nil {
-		cfg.BargeInPolicy.AllowWhileSpeaking = true
 		if sessionCfg.TurnDetection.SilenceDurationMs > 0 {
 			cfg.BargeInPolicy.MinSilenceForEnd = time.Duration(sessionCfg.TurnDetection.SilenceDurationMs) * time.Millisecond
 		}

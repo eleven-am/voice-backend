@@ -31,6 +31,7 @@ COPY --chown=ubuntu . .
 RUN --mount=type=cache,target=/root/.cache/uv \
     uv sync --frozen --compile-bytecode --python 3.12 && \
     mkdir -p $HOME/.cache/huggingface/hub && \
+    mkdir -p $HOME/.cache/torch/hub && \
     chown -R ubuntu:ubuntu $HOME
 
 USER ubuntu
@@ -42,7 +43,10 @@ ENV PATH="$HOME/sidecar/.venv/bin:$PATH" \
     TTS_MODEL_ID="speaches-ai/Kokoro-82M-v1.0-ONNX" \
     HF_HUB_ENABLE_HF_TRANSFER=0 \
     DO_NOT_TRACK=1 \
-    HF_HUB_DISABLE_TELEMETRY=1
+    HF_HUB_DISABLE_TELEMETRY=1 \
+    TORCH_CPP_LOG_LEVEL=ERROR
+
+RUN python -c "import sys, os; sys.stderr = open(os.devnull, 'w'); import torch; torch.hub.load('snakers4/silero-vad:master', 'silero_vad', force_reload=False, onnx=False)" 2>/dev/null
 
 EXPOSE 50051
 

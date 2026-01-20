@@ -41,12 +41,6 @@ type AgentStatusPayload struct {
 	Online  bool   `json:"online"`
 }
 
-type ErrorPayload struct {
-	Code    string            `json:"code"`
-	Message string            `json:"message"`
-	Details map[string]string `json:"details,omitempty"`
-}
-
 type SessionStartPayload struct {
 	Agents []AgentInfo `json:"agents"`
 }

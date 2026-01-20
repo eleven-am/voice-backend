@@ -15,7 +15,7 @@ from sidecar.tts import pb2_grpc as tts_pb2_grpc
 from sidecar.stt.engine_manager import EngineConfig, STTEngineManager
 from sidecar.stt.grpc_servicer import TranscriptionServiceServicer
 from sidecar.stt.pipeline import STTPipelineConfig, EOUConfig
-from sidecar.stt.vad import VADConfig
+from sidecar.stt.vad import VADConfig, SileroVAD
 from sidecar.tts.grpc_servicer import TextToSpeechServiceServicer
 from sidecar.tts.model_manager import KokoroModelManager, SynthesisConfig, TTSConfig
 from sidecar.shared.utils import get_env, start_health_server, token_auth_interceptor
@@ -81,6 +81,11 @@ tts_model_manager = KokoroModelManager(tts_config)
 def _preload_models() -> None:
     preload_stt = get_env("PRELOAD_STT", True)
     preload_tts = get_env("PRELOAD_TTS", True)
+    preload_vad = get_env("PRELOAD_VAD", True)
+
+    if preload_vad:
+        logger.info("Preloading VAD model...")
+        SileroVAD()._ensure_model()
 
     if preload_tts:
         logger.info("Preloading TTS model...")

@@ -5,6 +5,8 @@ import (
 	"log/slog"
 	"sync"
 	"time"
+
+	"github.com/eleven-am/voice-backend/internal/transport"
 )
 
 type Analyzer struct {
@@ -74,14 +76,14 @@ func (a *Analyzer) StartAnalysis(ctx context.Context, sessionID string) {
 	}()
 }
 
-func (a *Analyzer) GetResult(timeout time.Duration) *VisionContext {
+func (a *Analyzer) GetResult(timeout time.Duration) *transport.VisionContext {
 	a.mu.RLock()
 	doneCh := a.analysisDone
 	result := a.lastResult
 	a.mu.RUnlock()
 
 	if result != nil {
-		return &VisionContext{
+		return &transport.VisionContext{
 			Description: result.Description,
 			Timestamp:   result.Timestamp,
 			Available:   true,
@@ -89,7 +91,7 @@ func (a *Analyzer) GetResult(timeout time.Duration) *VisionContext {
 	}
 
 	if doneCh == nil {
-		return &VisionContext{Available: false}
+		return &transport.VisionContext{Available: false}
 	}
 
 	select {
@@ -98,7 +100,7 @@ func (a *Analyzer) GetResult(timeout time.Duration) *VisionContext {
 		result = a.lastResult
 		a.mu.RUnlock()
 		if result != nil {
-			return &VisionContext{
+			return &transport.VisionContext{
 				Description: result.Description,
 				Timestamp:   result.Timestamp,
 				Available:   true,
@@ -107,7 +109,7 @@ func (a *Analyzer) GetResult(timeout time.Duration) *VisionContext {
 	case <-time.After(timeout):
 	}
 
-	return &VisionContext{Available: false}
+	return &transport.VisionContext{Available: false}
 }
 
 func (a *Analyzer) Reset() {
@@ -125,9 +127,9 @@ func (a *Analyzer) GetFrames(ctx context.Context, req FrameRequest) (*FrameRespo
 	resp := &FrameResponse{}
 
 	if req.RawBase64 {
-		resp.Frames = make([]FrameData, 0, len(frames))
+		resp.Frames = make([]transport.FrameData, 0, len(frames))
 		for _, f := range frames {
-			resp.Frames = append(resp.Frames, FrameData{
+			resp.Frames = append(resp.Frames, transport.FrameData{
 				Timestamp: f.Timestamp,
 				Base64:    string(f.Data),
 			})

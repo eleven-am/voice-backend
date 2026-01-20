@@ -3,18 +3,20 @@ package transcription
 import (
 	"testing"
 	"time"
+
+	"github.com/eleven-am/voice-backend/internal/shared"
 )
 
 func TestNormalizeBackoff(t *testing.T) {
 	tests := []struct {
 		name   string
-		input  BackoffConfig
-		want   BackoffConfig
+		input  shared.BackoffConfig
+		want   shared.BackoffConfig
 	}{
 		{
 			name:  "empty config gets defaults",
-			input: BackoffConfig{},
-			want: BackoffConfig{
+			input: shared.BackoffConfig{},
+			want: shared.BackoffConfig{
 				Initial:     100 * time.Millisecond,
 				MaxAttempts: 5,
 				MaxDelay:    2 * time.Second,
@@ -22,12 +24,12 @@ func TestNormalizeBackoff(t *testing.T) {
 		},
 		{
 			name: "preserves non-zero values",
-			input: BackoffConfig{
+			input: shared.BackoffConfig{
 				Initial:     200 * time.Millisecond,
 				MaxAttempts: 10,
 				MaxDelay:    5 * time.Second,
 			},
-			want: BackoffConfig{
+			want: shared.BackoffConfig{
 				Initial:     200 * time.Millisecond,
 				MaxAttempts: 10,
 				MaxDelay:    5 * time.Second,
@@ -35,12 +37,12 @@ func TestNormalizeBackoff(t *testing.T) {
 		},
 		{
 			name: "normalizes only zero values",
-			input: BackoffConfig{
+			input: shared.BackoffConfig{
 				Initial:     0,
 				MaxAttempts: 3,
 				MaxDelay:    0,
 			},
-			want: BackoffConfig{
+			want: shared.BackoffConfig{
 				Initial:     100 * time.Millisecond,
 				MaxAttempts: 3,
 				MaxDelay:    2 * time.Second,
@@ -48,12 +50,12 @@ func TestNormalizeBackoff(t *testing.T) {
 		},
 		{
 			name: "negative values treated as zero",
-			input: BackoffConfig{
+			input: shared.BackoffConfig{
 				Initial:     -100 * time.Millisecond,
 				MaxAttempts: -5,
 				MaxDelay:    -1 * time.Second,
 			},
-			want: BackoffConfig{
+			want: shared.BackoffConfig{
 				Initial:     100 * time.Millisecond,
 				MaxAttempts: 5,
 				MaxDelay:    2 * time.Second,
@@ -182,7 +184,7 @@ func TestConfig_Fields(t *testing.T) {
 	cfg := Config{
 		Address: "localhost:50052",
 		Token:   "test-token",
-		Backoff: BackoffConfig{
+		Backoff: shared.BackoffConfig{
 			Initial:     100 * time.Millisecond,
 			MaxAttempts: 5,
 		},
@@ -230,20 +232,3 @@ func TestSessionOptions_Fields(t *testing.T) {
 	}
 }
 
-func TestBackoffConfig_Fields(t *testing.T) {
-	cfg := BackoffConfig{
-		Initial:     500 * time.Millisecond,
-		MaxAttempts: 10,
-		MaxDelay:    30 * time.Second,
-	}
-
-	if cfg.Initial != 500*time.Millisecond {
-		t.Error("Initial not set")
-	}
-	if cfg.MaxAttempts != 10 {
-		t.Error("MaxAttempts not set")
-	}
-	if cfg.MaxDelay != 30*time.Second {
-		t.Error("MaxDelay not set")
-	}
-}

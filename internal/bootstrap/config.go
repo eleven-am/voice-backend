@@ -42,6 +42,8 @@ type Config struct {
 	VisionOllamaURL string
 	VisionModel     string
 	VisionEnabled   bool
+
+	LogLevel string
 }
 
 type ICEServerConfig struct {
@@ -87,6 +89,8 @@ func LoadConfig() *Config {
 		VisionOllamaURL: getEnv("VISION_OLLAMA_URL", ""),
 		VisionModel:     getEnv("VISION_MODEL", "qwen2.5vl"),
 		VisionEnabled:   getEnv("VISION_ENABLED", "false") == "true",
+
+		LogLevel: getEnv("LOG_LEVEL", "info"),
 	}
 }
 

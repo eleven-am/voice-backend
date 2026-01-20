@@ -9,6 +9,23 @@ import (
 	"github.com/eleven-am/voice-backend/internal/transport"
 )
 
+type doneNotifier struct {
+	once   sync.Once
+	bridge *TTSBridge
+	onDone func()
+}
+
+func (d *doneNotifier) notify() {
+	d.once.Do(func() {
+		d.bridge.mu.Lock()
+		d.bridge.inFlight = false
+		d.bridge.mu.Unlock()
+		if d.onDone != nil {
+			d.onDone()
+		}
+	})
+}
+
 type TTSBridge struct {
 	synth   synthesis.Synthesizer
 	voiceID string
@@ -56,6 +73,8 @@ func (b *TTSBridge) StartStream(ctx context.Context, text string, onDone func())
 	b.inFlight = true
 	b.mu.Unlock()
 
+	notifier := &doneNotifier{bridge: b, onDone: onDone}
+
 	req := synthesis.Request{
 		Text:    text,
 		VoiceID: b.voiceID,
@@ -71,26 +90,20 @@ func (b *TTSBridge) StartStream(ctx context.Context, text string, onDone func())
 				Format:     format,
 				SampleRate: sampleRate,
 			}
+			b.log.Debug("TTS chunk", "bytes", len(data), "format", format, "sample_rate", sampleRate)
 			if err := b.conn.SendAudio(sCtx, chunk); err != nil {
 				b.log.Error("failed to send audio", "error", err)
 			}
 		},
 		OnDone: func(audioDurationMs, processingDurationMs, textLength uint64) {
-			b.mu.Lock()
-			b.inFlight = false
-			b.mu.Unlock()
-			if onDone != nil {
-				onDone()
+			if ctrl, ok := b.conn.(transport.OutputController); ok {
+				ctrl.WaitForAudioDrain()
 			}
+			notifier.notify()
 		},
 		OnError: func(err error) {
 			b.log.Error("TTS error", "error", err)
-			b.mu.Lock()
-			b.inFlight = false
-			b.mu.Unlock()
-			if onDone != nil {
-				onDone()
-			}
+			notifier.notify()
 		},
 	}
 
@@ -98,13 +111,8 @@ func (b *TTSBridge) StartStream(ctx context.Context, text string, onDone func())
 		err := b.synth.Synthesize(sCtx, req, cb)
 		if err != nil {
 			b.log.Error("TTS synthesize failed", "error", err)
-			b.mu.Lock()
-			b.inFlight = false
-			b.mu.Unlock()
-			if onDone != nil {
-				onDone()
-			}
 		}
+		notifier.notify()
 	}()
 }
 

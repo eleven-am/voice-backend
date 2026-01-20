@@ -1,6 +1,10 @@
 package vision
 
-import "time"
+import (
+	"time"
+
+	"github.com/eleven-am/voice-backend/internal/transport"
+)
 
 type Config struct {
 	OllamaURL string
@@ -15,12 +19,6 @@ type Frame struct {
 	Data      []byte
 	Width     int
 	Height    int
-}
-
-type VisionContext struct {
-	Description string `json:"description,omitempty"`
-	Timestamp   int64  `json:"timestamp,omitempty"`
-	Available   bool   `json:"available"`
 }
 
 type AnalyzeRequest struct {
@@ -42,11 +40,6 @@ type FrameRequest struct {
 }
 
 type FrameResponse struct {
-	Frames       []FrameData `json:"frames,omitempty"`
-	Descriptions []string    `json:"descriptions,omitempty"`
-}
-
-type FrameData struct {
-	Timestamp int64  `json:"timestamp"`
-	Base64    string `json:"base64,omitempty"`
+	Frames       []transport.FrameData `json:"frames,omitempty"`
+	Descriptions []string              `json:"descriptions,omitempty"`
 }

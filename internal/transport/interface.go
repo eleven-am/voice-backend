@@ -18,4 +18,5 @@ type OutputController interface {
 	PauseOutput()
 	ResumeOutput()
 	StopTTS()
+	WaitForAudioDrain()
 }

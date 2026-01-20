@@ -18,6 +18,7 @@ dependencies = [
     "sounddevice>=0.5.3",
     "onnx-asr[gpu,hub]>=0.10.0",
     "torch>=2.0.0",
+    "torchaudio>=2.0.0",
     "transformers>=4.40.0",
 ]
 

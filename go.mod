@@ -7,6 +7,7 @@ require (
 	github.com/golang-jwt/jwt/v5 v5.3.0
 	github.com/google/uuid v1.6.0
 	github.com/gorilla/websocket v1.5.4-0.20250319132907-e064f32e3674
+	github.com/hraban/opus v0.0.0-20251117090126-c76ea7e21bf3
 	github.com/jdkato/prose/v2 v2.0.0
 	github.com/labstack/echo/v4 v4.12.0
 	github.com/pion/rtp v1.8.25
