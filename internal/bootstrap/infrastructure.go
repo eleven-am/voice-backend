@@ -1,6 +1,7 @@
 package bootstrap
 
 import (
+	"fmt"
 	"time"
 
 	"github.com/eleven-am/voice-backend/internal/vision"
@@ -41,9 +42,12 @@ type VisionComponents struct {
 }
 
 func ProvideVisionComponents(cfg *Config, redisClient *redis.Client) *VisionComponents {
+	fmt.Printf("VISION DEBUG: Enabled=%v, OllamaURL=%q, Model=%q\n", cfg.VisionEnabled, cfg.VisionOllamaURL, cfg.VisionModel)
 	if !cfg.VisionEnabled || cfg.VisionOllamaURL == "" {
+		fmt.Println("VISION DEBUG: returning nil - vision disabled or no URL")
 		return nil
 	}
+	fmt.Println("VISION DEBUG: creating vision components")
 
 	visionCfg := vision.Config{
 		OllamaURL: cfg.VisionOllamaURL,

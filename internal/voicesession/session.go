@@ -2,6 +2,7 @@ package voicesession
 
 import (
 	"context"
+	"fmt"
 	"log/slog"
 	"slices"
 	"sync"
@@ -35,7 +36,7 @@ type VoiceSession struct {
 	voiceID     string
 	ttsSpeed    float32
 
-	speechCtrl *SpeechController
+	speechCtrl   *SpeechController
 	router       router.Router
 	arbiter      *Arbiter
 	agents       []router.AgentInfo
@@ -103,12 +104,16 @@ func New(conn transport.Connection, bridge transport.Bridge, cfg Config, log *sl
 		agents:         cfg.Agents,
 		visionAnalyzer: cfg.VisionAnalyzer,
 	}
+	fmt.Printf("VISION DEBUG New session: visionAnalyzer=%v, visionStore=%v\n", cfg.VisionAnalyzer != nil, cfg.VisionStore != nil)
 
 	if cfg.VisionAnalyzer != nil && cfg.VisionStore != nil {
 		if videoConn, ok := conn.(VideoConnection); ok {
+			fmt.Printf("VISION DEBUG session: setting up frame capturer with VPX decoder\n")
+			decoder := vision.NewVPXDecoder()
 			capturer := vision.NewFrameCapturer(vision.CapturerConfig{
 				SessionID:   sessionID,
 				Store:       cfg.VisionStore,
+				Decoder:     decoder,
 				CaptureRate: 2 * time.Second,
 				Logger:      log,
 			})
@@ -117,6 +122,8 @@ func New(conn transport.Connection, bridge transport.Bridge, cfg Config, log *sl
 			videoConn.OnVideo(func(payload []byte, mimeType string) {
 				capturer.HandleRTPPacket(payload, mimeType)
 			})
+		} else {
+			fmt.Printf("VISION DEBUG session: conn does not implement VideoConnection\n")
 		}
 	}
 
@@ -229,7 +236,9 @@ func (s *VoiceSession) onSpeechStart() {
 	s.log.Debug("speech actions", "actions", len(actions), "new_state", s.speechCtrl.State())
 	s.executeActions(actions)
 
+	fmt.Printf("VISION DEBUG onSpeechStart: visionAnalyzer=%v\n", s.visionAnalyzer != nil)
 	if s.visionAnalyzer != nil {
+		fmt.Println("VISION DEBUG: calling StartAnalysis")
 		s.visionAnalyzer.StartAnalysis(s.ctx, s.sessionID)
 	}
 }
@@ -298,9 +307,13 @@ func (s *VoiceSession) onTranscript(evt transcription.TranscriptEvent) {
 		IsFinal: true,
 	}
 
+	fmt.Printf("VISION DEBUG onTranscript: visionAnalyzer=%v\n", s.visionAnalyzer != nil)
 	if s.visionAnalyzer != nil {
-		visionResult := s.visionAnalyzer.GetResult(500 * time.Millisecond)
+		fmt.Println("VISION DEBUG: calling GetResult")
+		visionResult := s.visionAnalyzer.GetResult(10 * time.Second)
+		fmt.Printf("VISION DEBUG: GetResult returned=%v, available=%v\n", visionResult != nil, visionResult != nil && visionResult.Available)
 		if visionResult != nil && visionResult.Available {
+			fmt.Printf("VISION DEBUG: attaching vision context: %s\n", visionResult.Description)
 			basePayload.Vision = &transport.VisionContext{
 				Description: visionResult.Description,
 				Timestamp:   visionResult.Timestamp,

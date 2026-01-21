@@ -1,6 +1,7 @@
 package voicesession
 
 import (
+	"fmt"
 	"log/slog"
 	"sync"
 
@@ -47,6 +48,7 @@ func NewManager(cfg ManagerConfig) *Manager {
 		rtr = router.NewSmartRouter()
 	}
 
+	fmt.Printf("VISION DEBUG Manager: VisionAnalyzer=%v, VisionStore=%v\n", cfg.VisionAnalyzer != nil, cfg.VisionStore != nil)
 	return &Manager{
 		bridge:           cfg.Bridge,
 		router:           rtr,
@@ -79,6 +81,7 @@ func (m *Manager) CreateSession(conn transport.Connection, userCtx *transport.Us
 	if cfg.VisionStore == nil && m.visionStore != nil {
 		cfg.VisionStore = m.visionStore
 	}
+	fmt.Printf("VISION DEBUG CreateSession: m.visionAnalyzer=%v, cfg.VisionAnalyzer=%v\n", m.visionAnalyzer != nil, cfg.VisionAnalyzer != nil)
 
 	session, err := New(conn, m.bridge, cfg, m.log)
 	if err != nil {

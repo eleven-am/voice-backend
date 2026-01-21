@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"log/slog"
+	"strings"
 	"sync"
 
 	"github.com/eleven-am/voice-backend/internal/transport"
@@ -94,6 +95,8 @@ func NewConn(peer *Peer, cfg Config, log *slog.Logger) (*Conn, error) {
 		c.mu.RUnlock()
 		if cb != nil {
 			cb(payload, mimeType)
+		} else {
+			c.log.Debug("VISION DEBUG conn: c.onVideo is nil, payload not forwarded")
 		}
 	})
 
@@ -136,8 +139,14 @@ func (c *Conn) handleMessage(data []byte) {
 		return
 	}
 
-	if base.Type == "ice.candidate" {
+	c.log.Debug("data channel message received", "type", base.Type)
+
+	switch base.Type {
+	case "ice.candidate":
 		c.handleICECandidate(data)
+		return
+	case "offer", "sdp.offer":
+		c.handleRenegotiationOffer(data)
 		return
 	}
 
@@ -162,6 +171,52 @@ func (c *Conn) handleICECandidate(data []byte) {
 	if err := c.peer.AddICECandidate(msg.Candidate); err != nil {
 		c.log.Debug("failed to add ICE candidate", "error", err)
 	}
+}
+
+func (c *Conn) handleRenegotiationOffer(data []byte) {
+	var msg struct {
+		SDP string `json:"sdp"`
+	}
+	if err := json.Unmarshal(data, &msg); err != nil {
+		c.log.Error("failed to parse renegotiation offer", "error", err)
+		return
+	}
+
+	c.log.Info("received renegotiation offer", "hasVideo", len(msg.SDP) > 0 && containsVideo(msg.SDP))
+
+	if err := c.peer.SetOffer(msg.SDP); err != nil {
+		c.log.Error("failed to set renegotiation offer", "error", err)
+		return
+	}
+
+	answer, err := c.peer.CreateAnswer()
+	if err != nil {
+		c.log.Error("failed to create renegotiation answer", "error", err)
+		return
+	}
+
+	response := map[string]any{
+		"type": "answer",
+		"sdp":  answer,
+	}
+
+	responseData, err := json.Marshal(response)
+	if err != nil {
+		c.log.Error("failed to marshal answer", "error", err)
+		return
+	}
+
+	if c.dataChannel != nil {
+		if err := c.dataChannel.SendText(string(responseData)); err != nil {
+			c.log.Error("failed to send renegotiation answer", "error", err)
+		} else {
+			c.log.Info("sent renegotiation answer")
+		}
+	}
+}
+
+func containsVideo(sdp string) bool {
+	return strings.Contains(sdp, "m=video")
 }
 
 func (c *Conn) SendICECandidate(candidate webrtc.ICECandidateInit) error {

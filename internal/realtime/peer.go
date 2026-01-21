@@ -4,6 +4,7 @@ import (
 	"crypto/rand"
 	"encoding/binary"
 	"log"
+	"strings"
 	"sync"
 
 	"github.com/pion/rtp"
@@ -132,10 +133,14 @@ func (p *Peer) readIncomingVideo(track *webrtc.TrackRemote) {
 		p.mu.RUnlock()
 
 		if cb != nil {
-			pkt := &rtp.Packet{}
-			if err := pkt.Unmarshal(buf[:n]); err == nil {
-				cb(pkt.Payload, track.Codec().MimeType)
+			if packetCount <= 5 {
+				log.Printf("VISION DEBUG peer: calling onVideo callback, raw packet size=%d, mime=%s", n, track.Codec().MimeType)
 			}
+			data := make([]byte, n)
+			copy(data, buf[:n])
+			cb(data, track.Codec().MimeType)
+		} else if packetCount <= 5 {
+			log.Printf("VISION DEBUG peer: onVideo callback is nil!")
 		}
 	}
 }
@@ -172,6 +177,7 @@ func (p *Peer) readIncomingAudio(track *webrtc.TrackRemote) {
 }
 
 func (p *Peer) SetOffer(sdp string) error {
+	log.Printf("SDP Offer received, checking for video: hasVideo=%v", strings.Contains(sdp, "m=video"))
 	offer := webrtc.SessionDescription{
 		Type: webrtc.SDPTypeOffer,
 		SDP:  sdp,

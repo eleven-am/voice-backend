@@ -2,6 +2,7 @@ package vision
 
 import (
 	"context"
+	"fmt"
 	"log/slog"
 	"sync"
 	"time"
@@ -36,8 +37,10 @@ func (a *Analyzer) StoreFrame(ctx context.Context, frame *Frame) error {
 }
 
 func (a *Analyzer) StartAnalysis(ctx context.Context, sessionID string) {
+	fmt.Printf("VISION DEBUG analyzer.StartAnalysis: called for session=%s\n", sessionID)
 	a.mu.Lock()
 	if a.analyzing {
+		fmt.Printf("VISION DEBUG analyzer.StartAnalysis: already analyzing, skipping\n")
 		a.mu.Unlock()
 		return
 	}
@@ -53,14 +56,29 @@ func (a *Analyzer) StartAnalysis(ctx context.Context, sessionID string) {
 			a.mu.Unlock()
 		}()
 
+		fmt.Printf("VISION DEBUG analyzer.StartAnalysis: getting latest frame from store\n")
 		frame, err := a.store.GetLatestFrame(ctx, sessionID)
-		if err != nil || frame == nil {
+		if err != nil {
+			fmt.Printf("VISION DEBUG analyzer.StartAnalysis: store error: %v\n", err)
 			a.logger.Debug("no frame available for analysis", "session_id", sessionID)
+			return
+		}
+		if frame == nil {
+			fmt.Printf("VISION DEBUG analyzer.StartAnalysis: no frame found in store\n")
+			a.logger.Debug("no frame available for analysis", "session_id", sessionID)
+			return
+		}
+
+		fmt.Printf("VISION DEBUG analyzer.StartAnalysis: got frame, size=%d bytes, timestamp=%d, calling client.Analyze\n", len(frame.Data), frame.Timestamp)
+
+		if len(frame.Data) < 5000 {
+			fmt.Printf("VISION DEBUG analyzer.StartAnalysis: frame too small (%d bytes), likely black - skipping\n", len(frame.Data))
 			return
 		}
 
 		result, err := a.client.Analyze(ctx, AnalyzeRequest{Frame: frame})
 		if err != nil {
+			fmt.Printf("VISION DEBUG analyzer.StartAnalysis: client.Analyze error: %v\n", err)
 			a.logger.Error("vision analysis failed", "error", err)
 			return
 		}
@@ -69,6 +87,7 @@ func (a *Analyzer) StartAnalysis(ctx context.Context, sessionID string) {
 		a.lastResult = result
 		a.mu.Unlock()
 
+		fmt.Printf("VISION DEBUG analyzer.StartAnalysis: analysis complete, description=%d chars\n", len(result.Description))
 		a.logger.Debug("vision analysis complete",
 			"session_id", sessionID,
 			"timestamp", result.Timestamp,

@@ -7,7 +7,6 @@ require (
 	github.com/golang-jwt/jwt/v5 v5.3.0
 	github.com/google/uuid v1.6.0
 	github.com/gorilla/websocket v1.5.4-0.20250319132907-e064f32e3674
-	github.com/hraban/opus v0.0.0-20251117090126-c76ea7e21bf3
 	github.com/jdkato/prose/v2 v2.0.0
 	github.com/labstack/echo/v4 v4.12.0
 	github.com/pion/rtp v1.8.25
@@ -17,6 +16,7 @@ require (
 	github.com/swaggo/echo-swagger v1.4.2-0.20250911161534-084c884941f0
 	github.com/swaggo/swag/v2 v2.0.0-rc5
 	go.uber.org/fx v1.23.0
+	golang.org/x/image v0.35.0
 	golang.org/x/time v0.14.0
 	google.golang.org/grpc v1.77.0
 	google.golang.org/protobuf v1.36.10

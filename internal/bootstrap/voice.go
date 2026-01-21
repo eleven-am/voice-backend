@@ -2,6 +2,7 @@ package bootstrap
 
 import (
 	"errors"
+	"fmt"
 	"log/slog"
 	"net/http"
 	"strings"
@@ -67,6 +68,7 @@ func ProvideRouter() *router.SmartRouter {
 }
 
 func ProvideVoiceSessionManager(bridge *gateway.Bridge, rtr *router.SmartRouter, visionComponents *VisionComponents, logger *slog.Logger) *voicesession.Manager {
+	fmt.Printf("VISION DEBUG ProvideVoiceSessionManager: visionComponents=%v\n", visionComponents != nil)
 	cfg := voicesession.ManagerConfig{
 		Bridge: bridge,
 		Router: rtr,
@@ -74,6 +76,7 @@ func ProvideVoiceSessionManager(bridge *gateway.Bridge, rtr *router.SmartRouter,
 	}
 
 	if visionComponents != nil {
+		fmt.Printf("VISION DEBUG: setting analyzer=%v, store=%v\n", visionComponents.Analyzer != nil, visionComponents.Store != nil)
 		cfg.VisionAnalyzer = visionComponents.Analyzer
 		cfg.VisionStore = visionComponents.Store
 	}

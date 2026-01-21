@@ -42,9 +42,13 @@ type ollamaResponse struct {
 }
 
 func (c *Client) Analyze(ctx context.Context, req AnalyzeRequest) (*AnalyzeResponse, error) {
+	fmt.Printf("VISION DEBUG client.Analyze: called with frame=%v\n", req.Frame != nil)
 	if req.Frame == nil || len(req.Frame.Data) == 0 {
+		fmt.Printf("VISION DEBUG client.Analyze: no frame data provided\n")
 		return nil, fmt.Errorf("no frame data provided")
 	}
+
+	fmt.Printf("VISION DEBUG client.Analyze: frame data size=%d bytes\n", len(req.Frame.Data))
 
 	prompt := req.Prompt
 	if prompt == "" {
@@ -65,6 +69,8 @@ func (c *Client) Analyze(ctx context.Context, req AnalyzeRequest) (*AnalyzeRespo
 		return nil, fmt.Errorf("marshal request: %w", err)
 	}
 
+	fmt.Printf("VISION DEBUG client.Analyze: sending to Ollama at %s, model=%s\n", c.baseURL, c.model)
+
 	httpReq, err := http.NewRequestWithContext(ctx, "POST", c.baseURL+"/api/generate", bytes.NewReader(body))
 	if err != nil {
 		return nil, fmt.Errorf("create request: %w", err)
@@ -73,9 +79,12 @@ func (c *Client) Analyze(ctx context.Context, req AnalyzeRequest) (*AnalyzeRespo
 
 	resp, err := c.httpClient.Do(httpReq)
 	if err != nil {
+		fmt.Printf("VISION DEBUG client.Analyze: Ollama request error: %v\n", err)
 		return nil, fmt.Errorf("ollama request: %w", err)
 	}
 	defer resp.Body.Close()
+
+	fmt.Printf("VISION DEBUG client.Analyze: Ollama responded with status=%d\n", resp.StatusCode)
 
 	if resp.StatusCode != http.StatusOK {
 		return nil, fmt.Errorf("ollama returned status %d", resp.StatusCode)
@@ -85,6 +94,9 @@ func (c *Client) Analyze(ctx context.Context, req AnalyzeRequest) (*AnalyzeRespo
 	if err := json.NewDecoder(resp.Body).Decode(&ollamaResp); err != nil {
 		return nil, fmt.Errorf("decode response: %w", err)
 	}
+
+	fmt.Printf("VISION DEBUG client.Analyze: Ollama response length=%d chars\n", len(ollamaResp.Response))
+	fmt.Printf("VISION DEBUG client.Analyze: Ollama response: %s\n", ollamaResp.Response)
 
 	return &AnalyzeResponse{
 		Description: ollamaResp.Response,
