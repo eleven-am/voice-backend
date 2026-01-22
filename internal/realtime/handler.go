@@ -9,10 +9,13 @@ import (
 	"mime/multipart"
 	"net/http"
 
+	"github.com/eleven-am/voice-backend/internal/shared"
 	"github.com/eleven-am/voice-backend/internal/transport"
 	"github.com/labstack/echo/v4"
 	"github.com/pion/webrtc/v4"
 )
+
+var _ = shared.APIError{}
 
 type Handler struct {
 	manager *Manager
