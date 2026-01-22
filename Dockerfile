@@ -11,7 +11,10 @@ RUN go mod download
 
 COPY . .
 
-RUN swag init -g cmd/server/main.go -o docs --parseDependency --parseInternal
+RUN swag init -g cmd/server/main.go -o docs --v3.1 --parseDependency --parseInternal \
+    && sed -i 's/"openapi": "3.1.0"/"openapi": "3.0.0"/g' docs/swagger.json \
+    && sed -i 's/openapi: 3.1.0/openapi: 3.0.0/g' docs/swagger.yaml \
+    && sed -i 's/"3.1.0"/"3.0.0"/g' docs/docs.go
 
 RUN CGO_ENABLED=0 GOOS=linux go build \
     -ldflags="-w -s" \
