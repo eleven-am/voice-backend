@@ -54,7 +54,7 @@ operations:
     summary: Receive user utterance
     description: Server sends user speech/text to the agent for processing
     messages:
-      - $ref: '#/components/messages/utterance'
+      - $ref: '#/channels/agentConnection/messages/utterance'
 
   receiveSessionStart:
     action: receive
@@ -63,7 +63,7 @@ operations:
     summary: Receive session start notification
     description: Server notifies agent when a user session begins
     messages:
-      - $ref: '#/components/messages/sessionStart'
+      - $ref: '#/channels/agentConnection/messages/sessionStart'
 
   receiveSessionEnd:
     action: receive
@@ -72,7 +72,7 @@ operations:
     summary: Receive session end notification
     description: Server notifies agent when a user session ends
     messages:
-      - $ref: '#/components/messages/sessionEnd'
+      - $ref: '#/channels/agentConnection/messages/sessionEnd'
 
   receiveInterrupt:
     action: receive
@@ -81,7 +81,7 @@ operations:
     summary: Receive interrupt signal
     description: Server requests agent to cancel current response generation
     messages:
-      - $ref: '#/components/messages/interrupt'
+      - $ref: '#/channels/agentConnection/messages/interrupt'
 
   receiveFrameResponse:
     action: receive
@@ -90,7 +90,7 @@ operations:
     summary: Receive vision frames
     description: Server sends requested vision frames to the agent
     messages:
-      - $ref: '#/components/messages/frameResponse'
+      - $ref: '#/channels/agentConnection/messages/frameResponse'
 
   receiveAgentStatus:
     action: receive
@@ -99,7 +99,7 @@ operations:
     summary: Receive agent status updates
     description: Server notifies about other agents' online/offline status
     messages:
-      - $ref: '#/components/messages/agentStatus'
+      - $ref: '#/channels/agentConnection/messages/agentStatus'
 
   receiveError:
     action: receive
@@ -108,7 +108,7 @@ operations:
     summary: Receive error notification
     description: Server sends error information to the agent
     messages:
-      - $ref: '#/components/messages/error'
+      - $ref: '#/channels/agentConnection/messages/error'
 
   sendResponse:
     action: send
@@ -117,7 +117,7 @@ operations:
     summary: Send complete response
     description: Agent sends a complete response to the user
     messages:
-      - $ref: '#/components/messages/response'
+      - $ref: '#/channels/agentConnection/messages/response'
 
   sendResponseDelta:
     action: send
@@ -126,7 +126,7 @@ operations:
     summary: Send streaming response chunk
     description: Agent sends a text chunk for streaming responses
     messages:
-      - $ref: '#/components/messages/responseDelta'
+      - $ref: '#/channels/agentConnection/messages/responseDelta'
 
   sendResponseDone:
     action: send
@@ -135,7 +135,7 @@ operations:
     summary: Signal response complete
     description: Agent signals that response streaming is complete
     messages:
-      - $ref: '#/components/messages/responseDone'
+      - $ref: '#/channels/agentConnection/messages/responseDone'
 
   sendFrameRequest:
     action: send
@@ -144,7 +144,7 @@ operations:
     summary: Request vision frames
     description: Agent requests vision frames from the user's session
     messages:
-      - $ref: '#/components/messages/frameRequest'
+      - $ref: '#/channels/agentConnection/messages/frameRequest'
 
 components:
   securitySchemes:
