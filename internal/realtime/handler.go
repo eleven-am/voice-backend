@@ -74,6 +74,21 @@ func (h *Handler) RegisterRoutes(g *echo.Group) {
 	g.GET("/ice-servers", h.HandleICEServers)
 }
 
+// HandleICECandidate adds an ICE candidate to an existing session
+// @Summary      Add ICE candidate
+// @Description  Adds a trickle ICE candidate to the peer connection
+// @Tags         realtime
+// @Accept       json
+// @Produce      json
+// @Param        session_id path string true "Session ID"
+// @Param        candidate body ICECandidateRequest true "ICE candidate"
+// @Success      204 "Candidate added"
+// @Failure      400 {object} shared.APIError "Invalid request"
+// @Failure      401 {object} shared.APIError "Unauthorized"
+// @Failure      403 {object} shared.APIError "Forbidden"
+// @Failure      404 {object} shared.APIError "Session not found"
+// @Security     BearerAuth
+// @Router       /realtime/calls/{session_id} [post]
 func (h *Handler) HandleICECandidate(c echo.Context) error {
 	profile, err := h.auth(c.Request())
 	if err != nil {
@@ -114,6 +129,19 @@ func (h *Handler) HandleICECandidate(c echo.Context) error {
 	return c.NoContent(http.StatusNoContent)
 }
 
+// HandleICEStream streams ICE candidates via Server-Sent Events
+// @Summary      Stream ICE candidates
+// @Description  SSE endpoint that streams server ICE candidates as they are gathered
+// @Tags         realtime
+// @Produce      text/event-stream
+// @Param        session_id path string true "Session ID"
+// @Success      200 {string} string "SSE stream of ICE candidates"
+// @Failure      400 {object} shared.APIError "Invalid request"
+// @Failure      401 {object} shared.APIError "Unauthorized"
+// @Failure      403 {object} shared.APIError "Forbidden"
+// @Failure      404 {object} shared.APIError "Session not found"
+// @Security     BearerAuth
+// @Router       /realtime/calls/{session_id} [get]
 func (h *Handler) HandleICEStream(c echo.Context) error {
 	profile, err := h.auth(c.Request())
 	if err != nil {
@@ -163,6 +191,14 @@ func (h *Handler) HandleICEStream(c echo.Context) error {
 	}
 }
 
+// HandleICEServers returns available ICE/TURN servers for WebRTC connectivity
+// @Summary      Get ICE servers
+// @Description  Returns STUN/TURN server configurations needed to establish WebRTC peer connections. Includes public STUN servers and any configured TURN servers with credentials.
+// @Tags         realtime
+// @Produce      json
+// @Success      200 {object} ICEServersResponse "List of ICE server configurations"
+// @Failure      500 {object} shared.APIError "Server error"
+// @Router       /realtime/ice-servers [get]
 func (h *Handler) HandleICEServers(c echo.Context) error {
 	servers := h.iceServersResponse()
 	return c.JSON(http.StatusOK, map[string][]ICEServer{"ice_servers": servers})
@@ -193,6 +229,20 @@ func (h *Handler) iceServersResponse() []ICEServer {
 	return servers
 }
 
+// HandleOffer creates a new WebRTC session
+// @Summary      Create WebRTC session
+// @Description  Accepts an SDP offer and returns an SDP answer to establish WebRTC connection
+// @Tags         realtime
+// @Accept       application/sdp,application/json,multipart/form-data
+// @Produce      application/sdp
+// @Param        sdp body string true "SDP offer" example("v=0\r\no=- ...")
+// @Success      200 {string} string "SDP answer"
+// @Header       200 {string} X-Session-Id "Session identifier for subsequent requests"
+// @Failure      400 {object} shared.APIError "Invalid request"
+// @Failure      401 {object} shared.APIError "Unauthorized"
+// @Failure      500 {object} shared.APIError "Server error"
+// @Security     BearerAuth
+// @Router       /realtime/calls [post]
 func (h *Handler) HandleOffer(c echo.Context) error {
 	profile, err := h.auth(c.Request())
 	if err != nil {

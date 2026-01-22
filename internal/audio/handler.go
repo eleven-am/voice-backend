@@ -136,6 +136,19 @@ func (h *Handler) validateAPIKey(c echo.Context) (*apikey.APIKey, error) {
 	return key, nil
 }
 
+// HandleSpeech generates audio from text using text-to-speech
+// @Summary      Create speech
+// @Description  Generates audio from the input text using the specified voice and model. Supports multiple output formats including mp3, opus, wav, pcm, and flac.
+// @Tags         audio
+// @Accept       json
+// @Produce      audio/mpeg,audio/opus,audio/wav,audio/pcm,audio/flac
+// @Param        request body SpeechRequest true "Speech synthesis request"
+// @Success      200 {file} binary "Audio data in requested format"
+// @Failure      400 {object} shared.APIError "Invalid request (missing input, input too long)"
+// @Failure      401 {object} shared.APIError "Unauthorized - invalid or missing API key"
+// @Failure      500 {object} shared.APIError "Synthesis failed"
+// @Security     APIKeyAuth
+// @Router       /audio/speech [post]
 func (h *Handler) HandleSpeech(c echo.Context) error {
 	_, err := h.validateAPIKey(c)
 	if err != nil {
@@ -249,6 +262,26 @@ func (h *Handler) HandleSpeech(c echo.Context) error {
 	return c.Blob(http.StatusOK, contentType, buf.Bytes())
 }
 
+// HandleTranscriptions transcribes audio to text using speech-to-text
+// @Summary      Create transcription
+// @Description  Transcribes audio into text using the specified model. Supports multiple response formats (json, text, verbose_json) and optional word-level timestamps.
+// @Tags         audio
+// @Accept       multipart/form-data
+// @Produce      json,text/plain
+// @Param        file formData file true "Audio file to transcribe (max 25MB)"
+// @Param        model formData string false "Model ID to use for transcription"
+// @Param        language formData string false "Language code of the audio (e.g., en, es, fr)"
+// @Param        response_format formData string false "Output format: json, text, or verbose_json" default(json)
+// @Param        timestamp_granularities[] formData []string false "Timestamp granularities to include (word, segment)"
+// @Success      200 {object} TranscriptionResponse "Transcription result (json format)"
+// @Success      200 {object} TranscriptionVerboseResponse "Transcription result with timestamps (verbose_json format)"
+// @Success      200 {string} string "Plain text transcription (text format)"
+// @Failure      400 {object} shared.APIError "Invalid request (missing file)"
+// @Failure      401 {object} shared.APIError "Unauthorized - invalid or missing API key"
+// @Failure      413 {object} shared.APIError "File too large (max 25MB)"
+// @Failure      500 {object} shared.APIError "Transcription failed"
+// @Security     APIKeyAuth
+// @Router       /audio/transcriptions [post]
 func (h *Handler) HandleTranscriptions(c echo.Context) error {
 	_, err := h.validateAPIKey(c)
 	if err != nil {
@@ -345,6 +378,16 @@ func (h *Handler) HandleTranscriptions(c echo.Context) error {
 	})
 }
 
+// HandleListVoices lists all available TTS voices
+// @Summary      List voices
+// @Description  Returns a list of all available text-to-speech voices with their IDs, names, languages, and genders.
+// @Tags         audio
+// @Produce      json
+// @Success      200 {object} VoicesListResponse "List of available voices"
+// @Failure      401 {object} shared.APIError "Unauthorized - invalid or missing API key"
+// @Failure      500 {object} shared.APIError "Failed to list voices"
+// @Security     APIKeyAuth
+// @Router       /audio/voices [get]
 func (h *Handler) HandleListVoices(c echo.Context) error {
 	_, err := h.validateAPIKey(c)
 	if err != nil {
@@ -373,6 +416,16 @@ func (h *Handler) HandleListVoices(c echo.Context) error {
 	return c.JSON(http.StatusOK, resp)
 }
 
+// HandleListModels lists all available TTS models
+// @Summary      List models
+// @Description  Returns a list of all available text-to-speech models with their IDs, names, and descriptions.
+// @Tags         audio
+// @Produce      json
+// @Success      200 {object} ModelsListResponse "List of available models"
+// @Failure      401 {object} shared.APIError "Unauthorized - invalid or missing API key"
+// @Failure      500 {object} shared.APIError "Failed to list models"
+// @Security     APIKeyAuth
+// @Router       /audio/models [get]
 func (h *Handler) HandleListModels(c echo.Context) error {
 	_, err := h.validateAPIKey(c)
 	if err != nil {
