@@ -11,7 +11,7 @@ RUN go mod download
 
 COPY . .
 
-RUN swag init -g cmd/server/main.go -o docs --v3.1 --parseDependency --parseInternal
+RUN swag init -g cmd/server/main.go -o docs --parseDependency --parseInternal
 
 RUN CGO_ENABLED=0 GOOS=linux go build \
     -ldflags="-w -s" \
