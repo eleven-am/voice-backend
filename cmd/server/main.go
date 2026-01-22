@@ -16,10 +16,10 @@ import (
 // @name Authorization
 // @description JWT token from Better Auth
 
-// @securityDefinitions.apikey APIKeyAuth
+// @securitydefinitions.bearerauth APIKeyAuth
 // @in header
-// @name X-API-Key
-// @description API key for agent connections
+// @name Authorization
+// @description API key for audio endpoints (OpenAI-compatible format: Bearer sk-voice-...)
 
 func main() {
 	bootstrap.Run()

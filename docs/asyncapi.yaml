@@ -1,0 +1,491 @@
+asyncapi: 3.0.0
+info:
+  title: Voice Backend Agent API
+  version: 1.0.0
+  description: |
+    WebSocket API for voice agents to receive user utterances and send responses.
+
+    Agents connect via WebSocket to receive real-time user input and stream responses back.
+  license:
+    name: MIT
+
+servers:
+  production:
+    host: gateway.maix.ovh
+    pathname: /v1/agents/connect
+    protocol: wss
+    description: Production WebSocket endpoint
+    security:
+      - $ref: '#/components/securitySchemes/bearerAuth'
+      - $ref: '#/components/securitySchemes/apiKeyQuery'
+
+channels:
+  agentConnection:
+    address: /v1/agents/connect
+    messages:
+      utterance:
+        $ref: '#/components/messages/utterance'
+      sessionStart:
+        $ref: '#/components/messages/sessionStart'
+      sessionEnd:
+        $ref: '#/components/messages/sessionEnd'
+      interrupt:
+        $ref: '#/components/messages/interrupt'
+      frameResponse:
+        $ref: '#/components/messages/frameResponse'
+      agentStatus:
+        $ref: '#/components/messages/agentStatus'
+      error:
+        $ref: '#/components/messages/error'
+      response:
+        $ref: '#/components/messages/response'
+      responseDelta:
+        $ref: '#/components/messages/responseDelta'
+      responseDone:
+        $ref: '#/components/messages/responseDone'
+      frameRequest:
+        $ref: '#/components/messages/frameRequest'
+
+operations:
+  receiveUtterance:
+    action: receive
+    channel:
+      $ref: '#/channels/agentConnection'
+    summary: Receive user utterance
+    description: Server sends user speech/text to the agent for processing
+    messages:
+      - $ref: '#/components/messages/utterance'
+
+  receiveSessionStart:
+    action: receive
+    channel:
+      $ref: '#/channels/agentConnection'
+    summary: Receive session start notification
+    description: Server notifies agent when a user session begins
+    messages:
+      - $ref: '#/components/messages/sessionStart'
+
+  receiveSessionEnd:
+    action: receive
+    channel:
+      $ref: '#/channels/agentConnection'
+    summary: Receive session end notification
+    description: Server notifies agent when a user session ends
+    messages:
+      - $ref: '#/components/messages/sessionEnd'
+
+  receiveInterrupt:
+    action: receive
+    channel:
+      $ref: '#/channels/agentConnection'
+    summary: Receive interrupt signal
+    description: Server requests agent to cancel current response generation
+    messages:
+      - $ref: '#/components/messages/interrupt'
+
+  receiveFrameResponse:
+    action: receive
+    channel:
+      $ref: '#/channels/agentConnection'
+    summary: Receive vision frames
+    description: Server sends requested vision frames to the agent
+    messages:
+      - $ref: '#/components/messages/frameResponse'
+
+  receiveAgentStatus:
+    action: receive
+    channel:
+      $ref: '#/channels/agentConnection'
+    summary: Receive agent status updates
+    description: Server notifies about other agents' online/offline status
+    messages:
+      - $ref: '#/components/messages/agentStatus'
+
+  receiveError:
+    action: receive
+    channel:
+      $ref: '#/channels/agentConnection'
+    summary: Receive error notification
+    description: Server sends error information to the agent
+    messages:
+      - $ref: '#/components/messages/error'
+
+  sendResponse:
+    action: send
+    channel:
+      $ref: '#/channels/agentConnection'
+    summary: Send complete response
+    description: Agent sends a complete response to the user
+    messages:
+      - $ref: '#/components/messages/response'
+
+  sendResponseDelta:
+    action: send
+    channel:
+      $ref: '#/channels/agentConnection'
+    summary: Send streaming response chunk
+    description: Agent sends a text chunk for streaming responses
+    messages:
+      - $ref: '#/components/messages/responseDelta'
+
+  sendResponseDone:
+    action: send
+    channel:
+      $ref: '#/channels/agentConnection'
+    summary: Signal response complete
+    description: Agent signals that response streaming is complete
+    messages:
+      - $ref: '#/components/messages/responseDone'
+
+  sendFrameRequest:
+    action: send
+    channel:
+      $ref: '#/channels/agentConnection'
+    summary: Request vision frames
+    description: Agent requests vision frames from the user's session
+    messages:
+      - $ref: '#/components/messages/frameRequest'
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      description: API key as Bearer token in Authorization header
+    apiKeyQuery:
+      type: httpApiKey
+      in: query
+      name: api_key
+      description: API key as query parameter (WebSocket fallback)
+
+  schemas:
+    MessageBase:
+      type: object
+      required:
+        - type
+        - session_id
+        - request_id
+        - timestamp
+      properties:
+        type:
+          type: string
+          description: Message type identifier
+        session_id:
+          type: string
+          description: Session identifier
+        request_id:
+          type: string
+          description: Unique request identifier for correlation
+        agent_id:
+          type: string
+          description: Agent identifier
+        user_id:
+          type: string
+          description: User identifier
+        timestamp:
+          type: string
+          format: date-time
+          description: UTC timestamp
+
+    UserInfo:
+      type: object
+      description: User information (based on granted scopes)
+      properties:
+        name:
+          type: string
+          description: User's name (requires profile scope)
+        email:
+          type: string
+          description: User's email (requires email scope)
+        ip:
+          type: string
+          description: User's IP address (requires location scope)
+
+    VisionContext:
+      type: object
+      description: Vision context information
+      properties:
+        available:
+          type: boolean
+          description: Whether vision is available for this session
+        description:
+          type: string
+          description: AI-generated description of current scene
+        timestamp:
+          type: integer
+          format: int64
+          description: Timestamp of the vision capture
+
+    UtterancePayload:
+      type: object
+      required:
+        - text
+        - is_final
+      properties:
+        text:
+          type: string
+          description: User's spoken or typed text
+        is_final:
+          type: boolean
+          description: Whether this is the final transcription
+        user:
+          $ref: '#/components/schemas/UserInfo'
+        vision:
+          $ref: '#/components/schemas/VisionContext'
+
+    ResponsePayload:
+      type: object
+      required:
+        - text
+      properties:
+        text:
+          type: string
+          description: Agent's response text
+        from_agent:
+          type: string
+          description: Agent ID that generated this response
+
+    ResponseDeltaPayload:
+      type: object
+      required:
+        - delta
+      properties:
+        delta:
+          type: string
+          description: Text chunk for streaming response
+        from_agent:
+          type: string
+          description: Agent ID that generated this chunk
+
+    FrameRequestPayload:
+      type: object
+      properties:
+        start_time:
+          type: integer
+          format: int64
+          description: Start timestamp for frame range (ms)
+        end_time:
+          type: integer
+          format: int64
+          description: End timestamp for frame range (ms)
+        limit:
+          type: integer
+          description: Maximum number of frames to return
+        raw_base64:
+          type: boolean
+          description: Whether to include raw base64 image data
+
+    FrameResponsePayload:
+      type: object
+      properties:
+        frames:
+          type: array
+          items:
+            type: object
+            properties:
+              timestamp:
+                type: integer
+                format: int64
+              base64:
+                type: string
+                description: Base64-encoded image data
+        descriptions:
+          type: array
+          items:
+            type: string
+          description: AI-generated descriptions of frames
+        error:
+          type: string
+          description: Error message if frame retrieval failed
+
+    AgentStatusPayload:
+      type: object
+      required:
+        - agent_id
+        - online
+      properties:
+        agent_id:
+          type: string
+          description: Agent identifier
+        online:
+          type: boolean
+          description: Whether the agent is online
+
+    ErrorPayload:
+      type: object
+      required:
+        - code
+        - message
+      properties:
+        code:
+          type: string
+          description: Error code
+        message:
+          type: string
+          description: Human-readable error message
+
+  messages:
+    utterance:
+      name: utterance
+      title: User Utterance
+      summary: User speech or text input
+      contentType: application/json
+      payload:
+        allOf:
+          - $ref: '#/components/schemas/MessageBase'
+          - type: object
+            properties:
+              type:
+                const: utterance
+              payload:
+                $ref: '#/components/schemas/UtterancePayload'
+
+    sessionStart:
+      name: session_start
+      title: Session Start
+      summary: User session has started
+      contentType: application/json
+      payload:
+        allOf:
+          - $ref: '#/components/schemas/MessageBase'
+          - type: object
+            properties:
+              type:
+                const: session_start
+              payload:
+                type: object
+                properties:
+                  agents:
+                    type: array
+                    items:
+                      type: string
+                    description: List of available agent IDs for this session
+
+    sessionEnd:
+      name: session_end
+      title: Session End
+      summary: User session has ended
+      contentType: application/json
+      payload:
+        allOf:
+          - $ref: '#/components/schemas/MessageBase'
+          - type: object
+            properties:
+              type:
+                const: session_end
+
+    interrupt:
+      name: interrupt
+      title: Interrupt
+      summary: Cancel current response generation
+      contentType: application/json
+      payload:
+        allOf:
+          - $ref: '#/components/schemas/MessageBase'
+          - type: object
+            properties:
+              type:
+                const: interrupt
+
+    frameResponse:
+      name: frame_response
+      title: Frame Response
+      summary: Vision frames from user session
+      contentType: application/json
+      payload:
+        allOf:
+          - $ref: '#/components/schemas/MessageBase'
+          - type: object
+            properties:
+              type:
+                const: frame_response
+              payload:
+                $ref: '#/components/schemas/FrameResponsePayload'
+
+    agentStatus:
+      name: agent_status
+      title: Agent Status
+      summary: Agent online/offline status update
+      contentType: application/json
+      payload:
+        allOf:
+          - $ref: '#/components/schemas/MessageBase'
+          - type: object
+            properties:
+              type:
+                const: agent_status
+              payload:
+                $ref: '#/components/schemas/AgentStatusPayload'
+
+    error:
+      name: error
+      title: Error
+      summary: Error notification
+      contentType: application/json
+      payload:
+        allOf:
+          - $ref: '#/components/schemas/MessageBase'
+          - type: object
+            properties:
+              type:
+                const: error
+              payload:
+                $ref: '#/components/schemas/ErrorPayload'
+
+    response:
+      name: response
+      title: Agent Response
+      summary: Complete response from agent
+      contentType: application/json
+      payload:
+        allOf:
+          - $ref: '#/components/schemas/MessageBase'
+          - type: object
+            properties:
+              type:
+                const: response
+              payload:
+                $ref: '#/components/schemas/ResponsePayload'
+
+    responseDelta:
+      name: response.text.delta
+      title: Response Delta
+      summary: Streaming response text chunk
+      contentType: application/json
+      payload:
+        allOf:
+          - $ref: '#/components/schemas/MessageBase'
+          - type: object
+            properties:
+              type:
+                const: response.text.delta
+              payload:
+                $ref: '#/components/schemas/ResponseDeltaPayload'
+
+    responseDone:
+      name: response.done
+      title: Response Done
+      summary: Response streaming complete
+      contentType: application/json
+      payload:
+        allOf:
+          - $ref: '#/components/schemas/MessageBase'
+          - type: object
+            properties:
+              type:
+                const: response.done
+
+    frameRequest:
+      name: frame_request
+      title: Frame Request
+      summary: Request vision frames from session
+      contentType: application/json
+      payload:
+        allOf:
+          - $ref: '#/components/schemas/MessageBase'
+          - type: object
+            properties:
+              type:
+                const: frame_request
+              payload:
+                $ref: '#/components/schemas/FrameRequestPayload'

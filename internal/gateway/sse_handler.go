@@ -148,9 +148,5 @@ func extractAPIKey(r *http.Request) string {
 		return authHeader
 	}
 
-	if apiKey := r.Header.Get("X-API-Key"); apiKey != "" {
-		return apiKey
-	}
-
 	return r.URL.Query().Get("api_key")
 }

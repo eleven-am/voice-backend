@@ -132,7 +132,7 @@ func TestSSEAgentConn_Send_Cancelled(t *testing.T) {
 	w := &mockFlusherWriter{httptest.NewRecorder()}
 	conn, _ := NewSSEAgentConn(w, "agent_123", "owner_456")
 
-	for i := 0; i < 128; i++ {
+	for range 128 {
 		conn.send <- nil
 	}
 
@@ -335,16 +335,6 @@ func TestExtractAPIKey_Bearer(t *testing.T) {
 	}
 }
 
-func TestExtractAPIKey_XAPIKey(t *testing.T) {
-	req := httptest.NewRequest(http.MethodGet, "/", nil)
-	req.Header.Set("X-API-Key", "sk-test-key")
-
-	key := extractAPIKey(req)
-	if key != "sk-test-key" {
-		t.Errorf("expected sk-test-key, got %s", key)
-	}
-}
-
 func TestExtractAPIKey_QueryParam(t *testing.T) {
 	req := httptest.NewRequest(http.MethodGet, "/?api_key=sk-test-key", nil)
 
@@ -392,10 +382,7 @@ func TestSSEAgentConn_Run_SendMessage(t *testing.T) {
 	w := &mockFlusherWriter{rec}
 	conn, _ := NewSSEAgentConn(w, "agent_123", "owner_456")
 
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-
-	go conn.Run(ctx)
+	go conn.Run(t.Context())
 
 	msg := &transport.AgentMessage{
 		Type:    transport.MessageTypeResponse,

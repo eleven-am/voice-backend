@@ -3,8 +3,10 @@ package bootstrap
 import (
 	"context"
 	"log/slog"
+	"net/http"
 	"os"
 
+	"github.com/eleven-am/voice-backend/docs"
 	"github.com/eleven-am/voice-backend/internal/agent"
 	"github.com/eleven-am/voice-backend/internal/apikey"
 	"github.com/eleven-am/voice-backend/internal/auth"
@@ -68,6 +70,9 @@ func RegisterRoutes(e *echo.Echo, params HandlerParams) {
 	params.AgentConnHandler.RegisterRoutes(api.Group("/agents/connect"))
 
 	e.GET("/swagger/*", echoSwagger.EchoWrapHandlerV3())
+	e.GET("/asyncapi.yaml", func(c echo.Context) error {
+		return c.Blob(http.StatusOK, "application/yaml", docs.AsyncAPISpec)
+	})
 
 	e.Static("/assets", params.Config.StaticDir)
 	e.GET("/*", func(c echo.Context) error {
