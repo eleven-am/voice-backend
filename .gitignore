@@ -29,3 +29,4 @@ Thumbs.db
 # Vendor (optional)
 /vendor/
 .api-key
+**/__pycache__/
