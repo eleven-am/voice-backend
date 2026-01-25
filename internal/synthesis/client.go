@@ -166,6 +166,38 @@ func (c *Client) ListModels(ctx context.Context) ([]*ttspb.TTSModel, error) {
 	return resp.GetModels(), nil
 }
 
+func (c *Client) CreateVoice(ctx context.Context, voiceID string, audioData []byte, name, language, gender string) (*ttspb.Voice, error) {
+	md := metadata.MD{}
+	if c.token != "" {
+		md.Set("authorization", fmt.Sprintf("Bearer %s", c.token))
+	}
+	resp, err := c.client.CreateVoice(metadata.NewOutgoingContext(ctx, md), &ttspb.CreateVoiceRequest{
+		VoiceId:   voiceID,
+		AudioData: audioData,
+		Name:      name,
+		Language:  language,
+		Gender:    gender,
+	})
+	if err != nil {
+		return nil, err
+	}
+	return resp.GetVoice(), nil
+}
+
+func (c *Client) DeleteVoice(ctx context.Context, voiceID string) (bool, error) {
+	md := metadata.MD{}
+	if c.token != "" {
+		md.Set("authorization", fmt.Sprintf("Bearer %s", c.token))
+	}
+	resp, err := c.client.DeleteVoice(metadata.NewOutgoingContext(ctx, md), &ttspb.DeleteVoiceRequest{
+		VoiceId: voiceID,
+	})
+	if err != nil {
+		return false, err
+	}
+	return resp.GetSuccess(), nil
+}
+
 func (c *Client) Reconnect() error {
 	cfg := c.backoffConfig()
 	backoff := cfg.Initial

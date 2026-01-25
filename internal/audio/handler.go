@@ -59,6 +59,8 @@ func (h *Handler) RegisterRoutes(g *echo.Group) {
 	g.POST("/speech", h.HandleSpeech)
 	g.POST("/transcriptions", h.HandleTranscriptions)
 	g.GET("/voices", h.HandleListVoices)
+	g.POST("/voices", h.HandleCreateVoice)
+	g.DELETE("/voices/:voice_id", h.HandleDeleteVoice)
 	g.GET("/models", h.HandleListModels)
 }
 
@@ -451,4 +453,109 @@ func (h *Handler) HandleListModels(c echo.Context) error {
 	}
 
 	return c.JSON(http.StatusOK, resp)
+}
+
+const maxVoiceFileSize = 10 * 1024 * 1024
+
+// HandleCreateVoice creates a cloned voice from an audio sample
+// @Summary      Create a cloned voice
+// @Description  Creates a new cloned voice from an uploaded audio sample. The audio should be 1-30 seconds of clear speech.
+// @Tags         audio
+// @Accept       multipart/form-data
+// @Produce      json
+// @Param        file formData file true "Audio file (WAV, 1-30s)"
+// @Param        voice_id formData string true "Unique voice ID"
+// @Param        name formData string false "Display name"
+// @Param        language formData string false "Language code"
+// @Param        gender formData string false "Gender (male/female/neutral)"
+// @Success      200 {object} VoiceResponse "Created voice"
+// @Failure      400 {object} shared.APIError "Invalid request (missing file or voice_id)"
+// @Failure      401 {object} shared.APIError "Unauthorized - invalid or missing API key"
+// @Failure      413 {object} shared.APIError "File too large (max 10MB)"
+// @Failure      500 {object} shared.APIError "Voice creation failed"
+// @Security     APIKeyAuth
+// @Router       /audio/voices [post]
+func (h *Handler) HandleCreateVoice(c echo.Context) error {
+	_, err := h.validateAPIKey(c)
+	if err != nil {
+		return err
+	}
+
+	file, err := c.FormFile("file")
+	if err != nil {
+		return shared.BadRequest("missing_file", "Audio file is required")
+	}
+
+	if file.Size > maxVoiceFileSize {
+		return shared.NewAPIError("file_too_large", "File too large (max 10MB)").ToHTTP(http.StatusRequestEntityTooLarge)
+	}
+
+	voiceID := c.FormValue("voice_id")
+	if voiceID == "" {
+		return shared.BadRequest("missing_voice_id", "Voice ID is required")
+	}
+
+	src, err := file.Open()
+	if err != nil {
+		return shared.InternalError("file_error", "Failed to open file")
+	}
+	defer src.Close()
+
+	audioData, err := io.ReadAll(src)
+	if err != nil {
+		return shared.InternalError("file_error", "Failed to read file")
+	}
+
+	name := c.FormValue("name")
+	language := c.FormValue("language")
+	gender := c.FormValue("gender")
+
+	voice, err := h.ttsClient.CreateVoice(c.Request().Context(), voiceID, audioData, name, language, gender)
+	if err != nil {
+		h.logger.Error("create voice failed", "error", err)
+		return shared.InternalError("create_failed", "Failed to create voice")
+	}
+
+	return c.JSON(http.StatusOK, VoiceResponse{
+		ID:       voice.Id,
+		Name:     voice.Name,
+		Language: voice.Language,
+		Gender:   voice.Gender,
+	})
+}
+
+// HandleDeleteVoice deletes a cloned voice
+// @Summary      Delete a cloned voice
+// @Description  Deletes a previously created cloned voice by its ID.
+// @Tags         audio
+// @Produce      json
+// @Param        voice_id path string true "Voice ID to delete"
+// @Success      200 {object} map[string]bool "Success status"
+// @Failure      401 {object} shared.APIError "Unauthorized - invalid or missing API key"
+// @Failure      404 {object} shared.APIError "Voice not found"
+// @Failure      500 {object} shared.APIError "Voice deletion failed"
+// @Security     APIKeyAuth
+// @Router       /audio/voices/{voice_id} [delete]
+func (h *Handler) HandleDeleteVoice(c echo.Context) error {
+	_, err := h.validateAPIKey(c)
+	if err != nil {
+		return err
+	}
+
+	voiceID := c.Param("voice_id")
+	if voiceID == "" {
+		return shared.BadRequest("missing_voice_id", "Voice ID is required")
+	}
+
+	success, err := h.ttsClient.DeleteVoice(c.Request().Context(), voiceID)
+	if err != nil {
+		h.logger.Error("delete voice failed", "error", err)
+		return shared.InternalError("delete_failed", "Failed to delete voice")
+	}
+
+	if !success {
+		return shared.NewAPIError("not_found", "Voice not found").ToHTTP(http.StatusNotFound)
+	}
+
+	return c.JSON(http.StatusOK, map[string]bool{"success": true})
 }
