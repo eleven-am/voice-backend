@@ -8,8 +8,9 @@ from concurrent.futures import ThreadPoolExecutor
 
 from sidecar.tts import pb2 as tts_pb2
 from sidecar.tts import pb2_grpc as tts_pb2_grpc
-from sidecar.tts.synthesis import SAMPLE_RATE, Synthesizer, SynthesisError, float32_to_pcm16
-from sidecar.tts.model_manager import KOKORO_VOICES, KokoroModelManager, SynthesisConfig
+from sidecar.tts.synthesis import Synthesizer, SynthesisError, float32_to_pcm16
+from sidecar.tts.chatterbox_model_manager import ChatterboxModelManager, SynthesisConfig, SAMPLE_RATE
+from sidecar.tts.voice_store import VoiceStore, VoiceStoreError
 from sidecar.tts.encoding import encode_audio_async
 from sidecar.tts.opus_encoder import StreamingOpusEncoder, has_native_opus
 from sidecar.tts.mp3_encoder import StreamingMP3Encoder, has_native_mp3
@@ -20,20 +21,22 @@ logger = logging.getLogger(__name__)
 class TextToSpeechServiceServicer(tts_pb2_grpc.TextToSpeechServiceServicer):
     def __init__(
         self,
-        model_manager: KokoroModelManager,
+        model_manager: ChatterboxModelManager,
         config: SynthesisConfig,
         executor: ThreadPoolExecutor,
+        voice_store: VoiceStore | None = None,
     ) -> None:
         self.model_manager = model_manager
         self.config = config
         self.executor = executor
+        self.voice_store = voice_store
 
     async def _parse_tts_config(
         self, request_iterator
     ) -> tuple[tts_pb2.TtsSessionConfig | None, list[str], str, str, list[tts_pb2.TtsServerMessage]]:
         session_config: tts_pb2.TtsSessionConfig | None = None
         text_chunks: list[str] = []
-        voice_id = "af_heart"
+        voice_id = "default"
         response_format = "pcm"
         errors: list[tts_pb2.TtsServerMessage] = []
 
@@ -48,7 +51,7 @@ class TextToSpeechServiceServicer(tts_pb2_grpc.TextToSpeechServiceServicer):
                     continue
 
                 session_config = client_msg.config
-                voice_id = session_config.voice_id or "af_heart"
+                voice_id = session_config.voice_id or "default"
                 if session_config.response_format:
                     response_format = session_config.response_format.lower()
 
@@ -145,7 +148,7 @@ class TextToSpeechServiceServicer(tts_pb2_grpc.TextToSpeechServiceServicer):
         speed = session_config.speed if session_config.speed > 0 else self.config.speed
         synth_config = SynthesisConfig(speed=speed)
 
-        synthesizer = Synthesizer(self.model_manager, synth_config)
+        synthesizer = Synthesizer(self.model_manager, synth_config, self.voice_store)
         stop_event = asyncio.Event()
 
         start_time = time.perf_counter()
@@ -241,23 +244,101 @@ class TextToSpeechServiceServicer(tts_pb2_grpc.TextToSpeechServiceServicer):
 
         yield self._create_done_message(audio_samples, start_time, full_text)
 
-    def ListVoices(self, request, context):
+    async def ListVoices(self, request, context):
         voices = []
-        for voice_id, lang, gender in KOKORO_VOICES:
+
+        if self.voice_store:
+            stored_voices = await self.voice_store.list_voices()
+            for v in stored_voices:
+                voices.append(tts_pb2.Voice(
+                    id=v.voice_id,
+                    name=v.name,
+                    language=v.language,
+                    gender=v.gender,
+                    is_default=v.is_default,
+                ))
+        else:
             voices.append(tts_pb2.Voice(
-                id=voice_id,
-                name=voice_id.split("_")[1].title(),
-                language=lang,
-                gender=gender,
+                id="default",
+                name="Default",
+                language="en",
+                gender="neutral",
+                is_default=True,
             ))
+
         return tts_pb2.ListVoicesResponse(voices=voices)
 
     def ListModels(self, request, context):
         models = [
             tts_pb2.TTSModel(
-                id=self.model_manager.config.model_id,
-                name="Kokoro",
-                description="Kokoro TTS model",
+                id="chatterbox-turbo",
+                name="Chatterbox Turbo",
+                description="Chatterbox TTS 350M model with voice cloning support",
             ),
         ]
         return tts_pb2.ListModelsResponse(models=models)
+
+    async def CreateVoice(self, request, context):
+        if not self.voice_store:
+            return tts_pb2.CreateVoiceResponse(
+                voice=None,
+                message="Voice store not configured",
+            )
+
+        try:
+            metadata = await self.voice_store.create_voice(
+                voice_id=request.voice_id,
+                audio_data=request.audio_data,
+                name=request.name,
+                language=request.language,
+                gender=request.gender,
+            )
+
+            return tts_pb2.CreateVoiceResponse(
+                voice=tts_pb2.Voice(
+                    id=metadata.voice_id,
+                    name=metadata.name,
+                    language=metadata.language,
+                    gender=metadata.gender,
+                    is_default=metadata.is_default,
+                ),
+                message="Voice created successfully",
+            )
+        except VoiceStoreError as e:
+            logger.error(f"CreateVoice error: {e}")
+            return tts_pb2.CreateVoiceResponse(
+                voice=None,
+                message=str(e),
+            )
+        except Exception as e:
+            logger.exception("Unexpected CreateVoice error")
+            return tts_pb2.CreateVoiceResponse(
+                voice=None,
+                message=f"Unexpected error: {e}",
+            )
+
+    async def DeleteVoice(self, request, context):
+        if not self.voice_store:
+            return tts_pb2.DeleteVoiceResponse(
+                success=False,
+                message="Voice store not configured",
+            )
+
+        try:
+            success = await self.voice_store.delete_voice(request.voice_id)
+            if success:
+                return tts_pb2.DeleteVoiceResponse(
+                    success=True,
+                    message="Voice deleted successfully",
+                )
+            else:
+                return tts_pb2.DeleteVoiceResponse(
+                    success=False,
+                    message=f"Voice '{request.voice_id}' not found",
+                )
+        except Exception as e:
+            logger.exception("Unexpected DeleteVoice error")
+            return tts_pb2.DeleteVoiceResponse(
+                success=False,
+                message=f"Unexpected error: {e}",
+            )

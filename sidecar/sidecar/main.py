@@ -17,7 +17,8 @@ from sidecar.stt.grpc_servicer import TranscriptionServiceServicer
 from sidecar.stt.pipeline import STTPipelineConfig, EOUConfig
 from sidecar.stt.vad import VADConfig, SileroVAD
 from sidecar.tts.grpc_servicer import TextToSpeechServiceServicer
-from sidecar.tts.model_manager import KokoroModelManager, SynthesisConfig, TTSConfig
+from sidecar.tts.chatterbox_model_manager import ChatterboxModelManager, SynthesisConfig, TTSConfig
+from sidecar.tts.voice_store import VoiceStore
 from sidecar.shared.utils import get_env, start_health_server, token_auth_interceptor
 
 logging.basicConfig(
@@ -66,16 +67,18 @@ pipeline_config = STTPipelineConfig(
 engine_manager = STTEngineManager(engine_config)
 
 tts_config = TTSConfig(
-    model_id=get_env("TTS_MODEL_ID", "hexgrad/Kokoro-82M-v1.0-ONNX"),
-    device=get_env("TTS_DEVICE", "cpu"),
+    device=get_env("TTS_DEVICE", "cuda" if _CUDA_AVAILABLE else "cpu"),
     ttl=get_env("TTS_MODEL_TTL", 300),
 )
 
 synthesis_config = SynthesisConfig(
     speed=get_env("TTS_SPEED", 1.0),
+    exaggeration=get_env("TTS_EXAGGERATION", 0.5),
+    cfg_weight=get_env("TTS_CFG_WEIGHT", 0.5),
 )
 
-tts_model_manager = KokoroModelManager(tts_config)
+tts_model_manager = ChatterboxModelManager(tts_config)
+voice_store = VoiceStore(get_env("VOICE_STORE_PATH", "/data/voices"))
 
 
 def _preload_models() -> None:
@@ -137,7 +140,7 @@ async def serve() -> None:
         server,
     )
     tts_pb2_grpc.add_TextToSpeechServiceServicer_to_server(
-        TextToSpeechServiceServicer(tts_model_manager, synthesis_config, tts_executor),
+        TextToSpeechServiceServicer(tts_model_manager, synthesis_config, tts_executor, voice_store),
         server,
     )
     if tls_cert and tls_key:
@@ -155,8 +158,9 @@ async def serve() -> None:
     logger.info(f"Starting gRPC server on port {port}")
     logger.info(f"STT model: {engine_config.model_id}")
     logger.info(f"STT device: {engine_config.device}")
-    logger.info(f"TTS model: {tts_config.model_id}")
+    logger.info("TTS model: Chatterbox Turbo")
     logger.info(f"TTS device: {tts_config.device}")
+    logger.info(f"Voice store: {voice_store.voices_dir}")
     logger.info(f"VAD threshold: {vad_config.threshold}")
     logger.info(f"EOU threshold: {eou_config.threshold}")
     logger.info(f"gRPC workers: {grpc_workers}, STT workers: {stt_workers}, TTS workers: {tts_workers}")

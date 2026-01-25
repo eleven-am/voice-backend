@@ -22,6 +22,29 @@ message Voice {
   string name = 2;
   string language = 3;
   string gender = 4;
+  bool is_default = 5;
+}
+
+message CreateVoiceRequest {
+  string voice_id = 1;
+  bytes audio_data = 2;
+  string name = 3;
+  string language = 4;
+  string gender = 5;
+}
+
+message CreateVoiceResponse {
+  Voice voice = 1;
+  string message = 2;
+}
+
+message DeleteVoiceRequest {
+  string voice_id = 1;
+}
+
+message DeleteVoiceResponse {
+  bool success = 1;
+  string message = 2;
 }
 
 message ListModelsRequest {}
@@ -91,4 +114,6 @@ service TextToSpeechService {
   rpc Synthesize(stream TtsClientMessage) returns (stream TtsServerMessage);
   rpc ListVoices(ListVoicesRequest) returns (ListVoicesResponse);
   rpc ListModels(ListModelsRequest) returns (ListModelsResponse);
+  rpc CreateVoice(CreateVoiceRequest) returns (CreateVoiceResponse);
+  rpc DeleteVoice(DeleteVoiceRequest) returns (DeleteVoiceResponse);
 }

@@ -49,6 +49,16 @@ class TextToSpeechServiceStub(object):
                 request_serializer=tts__pb2.ListModelsRequest.SerializeToString,
                 response_deserializer=tts__pb2.ListModelsResponse.FromString,
                 _registered_method=True)
+        self.CreateVoice = channel.unary_unary(
+                '/tts.TextToSpeechService/CreateVoice',
+                request_serializer=tts__pb2.CreateVoiceRequest.SerializeToString,
+                response_deserializer=tts__pb2.CreateVoiceResponse.FromString,
+                _registered_method=True)
+        self.DeleteVoice = channel.unary_unary(
+                '/tts.TextToSpeechService/DeleteVoice',
+                request_serializer=tts__pb2.DeleteVoiceRequest.SerializeToString,
+                response_deserializer=tts__pb2.DeleteVoiceResponse.FromString,
+                _registered_method=True)
 
 
 class TextToSpeechServiceServicer(object):
@@ -72,6 +82,18 @@ class TextToSpeechServiceServicer(object):
         context.set_details('Method not implemented!')
         raise NotImplementedError('Method not implemented!')
 
+    def CreateVoice(self, request, context):
+        """Missing associated documentation comment in .proto file."""
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+    def DeleteVoice(self, request, context):
+        """Missing associated documentation comment in .proto file."""
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
 
 def add_TextToSpeechServiceServicer_to_server(servicer, server):
     rpc_method_handlers = {
@@ -89,6 +111,16 @@ def add_TextToSpeechServiceServicer_to_server(servicer, server):
                     servicer.ListModels,
                     request_deserializer=tts__pb2.ListModelsRequest.FromString,
                     response_serializer=tts__pb2.ListModelsResponse.SerializeToString,
+            ),
+            'CreateVoice': grpc.unary_unary_rpc_method_handler(
+                    servicer.CreateVoice,
+                    request_deserializer=tts__pb2.CreateVoiceRequest.FromString,
+                    response_serializer=tts__pb2.CreateVoiceResponse.SerializeToString,
+            ),
+            'DeleteVoice': grpc.unary_unary_rpc_method_handler(
+                    servicer.DeleteVoice,
+                    request_deserializer=tts__pb2.DeleteVoiceRequest.FromString,
+                    response_serializer=tts__pb2.DeleteVoiceResponse.SerializeToString,
             ),
     }
     generic_handler = grpc.method_handlers_generic_handler(
@@ -172,6 +204,60 @@ class TextToSpeechService(object):
             '/tts.TextToSpeechService/ListModels',
             tts__pb2.ListModelsRequest.SerializeToString,
             tts__pb2.ListModelsResponse.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def CreateVoice(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/tts.TextToSpeechService/CreateVoice',
+            tts__pb2.CreateVoiceRequest.SerializeToString,
+            tts__pb2.CreateVoiceResponse.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def DeleteVoice(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/tts.TextToSpeechService/DeleteVoice',
+            tts__pb2.DeleteVoiceRequest.SerializeToString,
+            tts__pb2.DeleteVoiceResponse.FromString,
             options,
             channel_credentials,
             insecure,

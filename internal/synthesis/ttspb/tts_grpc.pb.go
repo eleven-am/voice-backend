@@ -19,9 +19,11 @@ import (
 const _ = grpc.SupportPackageIsVersion9
 
 const (
-	TextToSpeechService_Synthesize_FullMethodName = "/tts.TextToSpeechService/Synthesize"
-	TextToSpeechService_ListVoices_FullMethodName = "/tts.TextToSpeechService/ListVoices"
-	TextToSpeechService_ListModels_FullMethodName = "/tts.TextToSpeechService/ListModels"
+	TextToSpeechService_Synthesize_FullMethodName  = "/tts.TextToSpeechService/Synthesize"
+	TextToSpeechService_ListVoices_FullMethodName  = "/tts.TextToSpeechService/ListVoices"
+	TextToSpeechService_ListModels_FullMethodName  = "/tts.TextToSpeechService/ListModels"
+	TextToSpeechService_CreateVoice_FullMethodName = "/tts.TextToSpeechService/CreateVoice"
+	TextToSpeechService_DeleteVoice_FullMethodName = "/tts.TextToSpeechService/DeleteVoice"
 )
 
 // TextToSpeechServiceClient is the client API for TextToSpeechService service.
@@ -31,6 +33,8 @@ type TextToSpeechServiceClient interface {
 	Synthesize(ctx context.Context, opts ...grpc.CallOption) (grpc.BidiStreamingClient[TtsClientMessage, TtsServerMessage], error)
 	ListVoices(ctx context.Context, in *ListVoicesRequest, opts ...grpc.CallOption) (*ListVoicesResponse, error)
 	ListModels(ctx context.Context, in *ListModelsRequest, opts ...grpc.CallOption) (*ListModelsResponse, error)
+	CreateVoice(ctx context.Context, in *CreateVoiceRequest, opts ...grpc.CallOption) (*CreateVoiceResponse, error)
+	DeleteVoice(ctx context.Context, in *DeleteVoiceRequest, opts ...grpc.CallOption) (*DeleteVoiceResponse, error)
 }
 
 type textToSpeechServiceClient struct {
@@ -74,6 +78,26 @@ func (c *textToSpeechServiceClient) ListModels(ctx context.Context, in *ListMode
 	return out, nil
 }
 
+func (c *textToSpeechServiceClient) CreateVoice(ctx context.Context, in *CreateVoiceRequest, opts ...grpc.CallOption) (*CreateVoiceResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(CreateVoiceResponse)
+	err := c.cc.Invoke(ctx, TextToSpeechService_CreateVoice_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *textToSpeechServiceClient) DeleteVoice(ctx context.Context, in *DeleteVoiceRequest, opts ...grpc.CallOption) (*DeleteVoiceResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(DeleteVoiceResponse)
+	err := c.cc.Invoke(ctx, TextToSpeechService_DeleteVoice_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // TextToSpeechServiceServer is the server API for TextToSpeechService service.
 // All implementations must embed UnimplementedTextToSpeechServiceServer
 // for forward compatibility.
@@ -81,6 +105,8 @@ type TextToSpeechServiceServer interface {
 	Synthesize(grpc.BidiStreamingServer[TtsClientMessage, TtsServerMessage]) error
 	ListVoices(context.Context, *ListVoicesRequest) (*ListVoicesResponse, error)
 	ListModels(context.Context, *ListModelsRequest) (*ListModelsResponse, error)
+	CreateVoice(context.Context, *CreateVoiceRequest) (*CreateVoiceResponse, error)
+	DeleteVoice(context.Context, *DeleteVoiceRequest) (*DeleteVoiceResponse, error)
 	mustEmbedUnimplementedTextToSpeechServiceServer()
 }
 
@@ -99,6 +125,12 @@ func (UnimplementedTextToSpeechServiceServer) ListVoices(context.Context, *ListV
 }
 func (UnimplementedTextToSpeechServiceServer) ListModels(context.Context, *ListModelsRequest) (*ListModelsResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method ListModels not implemented")
+}
+func (UnimplementedTextToSpeechServiceServer) CreateVoice(context.Context, *CreateVoiceRequest) (*CreateVoiceResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method CreateVoice not implemented")
+}
+func (UnimplementedTextToSpeechServiceServer) DeleteVoice(context.Context, *DeleteVoiceRequest) (*DeleteVoiceResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method DeleteVoice not implemented")
 }
 func (UnimplementedTextToSpeechServiceServer) mustEmbedUnimplementedTextToSpeechServiceServer() {}
 func (UnimplementedTextToSpeechServiceServer) testEmbeddedByValue()                             {}
@@ -164,6 +196,42 @@ func _TextToSpeechService_ListModels_Handler(srv interface{}, ctx context.Contex
 	return interceptor(ctx, in, info, handler)
 }
 
+func _TextToSpeechService_CreateVoice_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(CreateVoiceRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(TextToSpeechServiceServer).CreateVoice(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: TextToSpeechService_CreateVoice_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(TextToSpeechServiceServer).CreateVoice(ctx, req.(*CreateVoiceRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _TextToSpeechService_DeleteVoice_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(DeleteVoiceRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(TextToSpeechServiceServer).DeleteVoice(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: TextToSpeechService_DeleteVoice_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(TextToSpeechServiceServer).DeleteVoice(ctx, req.(*DeleteVoiceRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // TextToSpeechService_ServiceDesc is the grpc.ServiceDesc for TextToSpeechService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -178,6 +246,14 @@ var TextToSpeechService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "ListModels",
 			Handler:    _TextToSpeechService_ListModels_Handler,
+		},
+		{
+			MethodName: "CreateVoice",
+			Handler:    _TextToSpeechService_CreateVoice_Handler,
+		},
+		{
+			MethodName: "DeleteVoice",
+			Handler:    _TextToSpeechService_DeleteVoice_Handler,
 		},
 	},
 	Streams: []grpc.StreamDesc{
