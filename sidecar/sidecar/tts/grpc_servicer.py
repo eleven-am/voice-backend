@@ -9,10 +9,10 @@ from concurrent.futures import ThreadPoolExecutor
 from sidecar.tts import pb2 as tts_pb2
 from sidecar.tts import pb2_grpc as tts_pb2_grpc
 from sidecar.tts.encoding import encode_audio_async
-from sidecar.tts.model_manager import KOKORO_VOICES, KokoroModelManager, SynthesisConfig
+from sidecar.tts.model_manager import KOKORO_VOICES, KokoroModelManager, SAMPLE_RATE, SynthesisConfig
 from sidecar.tts.mp3_encoder import StreamingMP3Encoder, has_native_mp3
 from sidecar.tts.opus_encoder import StreamingOpusEncoder, has_native_opus
-from sidecar.tts.synthesis import SAMPLE_RATE, SynthesisError, Synthesizer, float32_to_pcm16
+from sidecar.tts.synthesis import SynthesisError, Synthesizer, float32_to_pcm16
 
 logger = logging.getLogger(__name__)
 
