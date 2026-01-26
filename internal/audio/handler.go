@@ -60,6 +60,8 @@ func (h *Handler) RegisterRoutes(g *echo.Group) {
 	g.POST("/transcriptions", h.HandleTranscriptions)
 	g.GET("/voices", h.HandleListVoices)
 	g.GET("/models", h.HandleListModels)
+	g.POST("/voices", h.HandleCreateVoice)
+	g.DELETE("/voices/:voice_id", h.HandleDeleteVoice)
 }
 
 type SpeechRequest struct {
@@ -115,6 +117,14 @@ type ModelResponse struct {
 
 type ModelsListResponse struct {
 	Models []ModelResponse `json:"models"`
+}
+
+type CreateVoiceRequest struct {
+	VoiceID       string `form:"voice_id"`
+	Name          string `form:"name"`
+	Language      string `form:"language"`
+	Gender        string `form:"gender"`
+	ReferenceText string `form:"reference_text"`
 }
 
 func (h *Handler) validateAPIKey(c echo.Context) (*apikey.APIKey, error) {
@@ -451,4 +461,125 @@ func (h *Handler) HandleListModels(c echo.Context) error {
 	}
 
 	return c.JSON(http.StatusOK, resp)
+}
+
+const maxVoiceFileSize = 10 * 1024 * 1024
+
+// HandleCreateVoice creates a cloned voice from a reference audio file
+// @Summary      Create a cloned voice
+// @Description  Creates a new cloned voice from a reference audio file. The voice can then be used for speech synthesis.
+// @Tags         audio
+// @Accept       multipart/form-data
+// @Produce      json
+// @Param        file formData file true "Reference audio file (WAV, 1-30s, max 10MB)"
+// @Param        voice_id formData string true "Unique voice ID"
+// @Param        name formData string false "Display name for the voice"
+// @Param        language formData string false "Language code (e.g., English, Chinese)" default(English)
+// @Param        gender formData string false "Gender (male/female/neutral)" default(neutral)
+// @Param        reference_text formData string true "Transcript of the reference audio"
+// @Success      200 {object} VoiceResponse "Created voice"
+// @Failure      400 {object} shared.APIError "Invalid request (missing file or voice_id)"
+// @Failure      401 {object} shared.APIError "Unauthorized - invalid or missing API key"
+// @Failure      413 {object} shared.APIError "File too large (max 10MB)"
+// @Failure      500 {object} shared.APIError "Failed to create voice"
+// @Security     APIKeyAuth
+// @Router       /audio/voices [post]
+func (h *Handler) HandleCreateVoice(c echo.Context) error {
+	_, err := h.validateAPIKey(c)
+	if err != nil {
+		return err
+	}
+
+	file, err := c.FormFile("file")
+	if err != nil {
+		return shared.BadRequest("missing_file", "Reference audio file is required")
+	}
+
+	if file.Size > maxVoiceFileSize {
+		return shared.NewAPIError("file_too_large", "File too large (max 10MB)").ToHTTP(http.StatusRequestEntityTooLarge)
+	}
+
+	voiceID := c.FormValue("voice_id")
+	if voiceID == "" {
+		return shared.BadRequest("missing_voice_id", "voice_id is required")
+	}
+
+	referenceText := c.FormValue("reference_text")
+	if referenceText == "" {
+		return shared.BadRequest("missing_reference_text", "reference_text is required for voice cloning")
+	}
+
+	src, err := file.Open()
+	if err != nil {
+		return shared.InternalError("file_error", "Failed to open file")
+	}
+	defer src.Close()
+
+	audioData, err := io.ReadAll(src)
+	if err != nil {
+		return shared.InternalError("file_error", "Failed to read file")
+	}
+
+	name := c.FormValue("name")
+	if name == "" {
+		name = voiceID
+	}
+	language := c.FormValue("language")
+	if language == "" {
+		language = "English"
+	}
+	gender := c.FormValue("gender")
+	if gender == "" {
+		gender = "neutral"
+	}
+
+	voice, err := h.ttsClient.CreateVoice(c.Request().Context(), voiceID, audioData, name, language, gender, referenceText)
+	if err != nil {
+		h.logger.Error("create voice failed", "error", err)
+		return shared.InternalError("create_failed", "Failed to create voice")
+	}
+
+	return c.JSON(http.StatusOK, VoiceResponse{
+		ID:       voice.Id,
+		Name:     voice.Name,
+		Language: voice.Language,
+		Gender:   voice.Gender,
+	})
+}
+
+// HandleDeleteVoice deletes a cloned voice
+// @Summary      Delete a cloned voice
+// @Description  Deletes a previously cloned voice by its ID.
+// @Tags         audio
+// @Produce      json
+// @Param        voice_id path string true "Voice ID to delete"
+// @Success      200 {object} map[string]bool "Success status"
+// @Failure      400 {object} shared.APIError "Invalid request (missing voice_id)"
+// @Failure      401 {object} shared.APIError "Unauthorized - invalid or missing API key"
+// @Failure      404 {object} shared.APIError "Voice not found"
+// @Failure      500 {object} shared.APIError "Failed to delete voice"
+// @Security     APIKeyAuth
+// @Router       /audio/voices/{voice_id} [delete]
+func (h *Handler) HandleDeleteVoice(c echo.Context) error {
+	_, err := h.validateAPIKey(c)
+	if err != nil {
+		return err
+	}
+
+	voiceID := c.Param("voice_id")
+	if voiceID == "" {
+		return shared.BadRequest("missing_voice_id", "voice_id is required")
+	}
+
+	success, err := h.ttsClient.DeleteVoice(c.Request().Context(), voiceID)
+	if err != nil {
+		h.logger.Error("delete voice failed", "error", err)
+		return shared.InternalError("delete_failed", "Failed to delete voice")
+	}
+
+	if !success {
+		return shared.NewAPIError("not_found", "Voice not found").ToHTTP(http.StatusNotFound)
+	}
+
+	return c.JSON(http.StatusOK, map[string]bool{"success": true})
 }

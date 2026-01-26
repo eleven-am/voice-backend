@@ -87,7 +87,7 @@ def is_oom_error(error: Exception) -> bool:
     ])
 
 
-def token_auth_interceptor(expected_token: str) -> "grpc.ServerInterceptor":
+def token_auth_interceptor(expected_token: str) -> grpc.ServerInterceptor:
     import grpc
 
     class AuthInterceptor(grpc.ServerInterceptor):

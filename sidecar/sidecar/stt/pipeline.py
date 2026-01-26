@@ -1,11 +1,10 @@
 from __future__ import annotations
 
 import logging
-import time
-from dataclasses import dataclass, field
-from typing import Generator
-
 import threading
+import time
+from collections.abc import Generator
+from dataclasses import dataclass, field
 
 import numpy as np
 import onnxruntime as ort
@@ -13,8 +12,8 @@ from huggingface_hub import hf_hub_download
 from numpy.typing import NDArray
 from transformers import AutoTokenizer
 
-from sidecar.stt.engine_manager import EngineConfig, STTEngineManager
 from sidecar.domain.types import SessionConfig, SpeechStarted, SpeechStopped, Transcript
+from sidecar.stt.engine_manager import EngineConfig, STTEngineManager
 from sidecar.stt.vad import SpeechSegment, VADConfig, VADProcessor
 
 logger = logging.getLogger(__name__)

@@ -1,12 +1,9 @@
 from __future__ import annotations
 
 import os
-import threading
 import time
 from http.client import HTTPConnection
 from unittest.mock import MagicMock, patch
-
-import pytest
 
 from sidecar.shared.utils import (
     MAX_CHUNK_CHARS,
@@ -176,7 +173,6 @@ class TestTokenAuthInterceptor:
         mock_continuation.assert_called_once_with(mock_call_details)
 
     def test_missing_token_denies_request(self):
-        import grpc
 
         interceptor = token_auth_interceptor("secret-token")
         mock_continuation = MagicMock()
@@ -189,7 +185,6 @@ class TestTokenAuthInterceptor:
         assert result is not None
 
     def test_invalid_token_denies_request(self):
-        import grpc
 
         interceptor = token_auth_interceptor("secret-token")
         mock_continuation = MagicMock()

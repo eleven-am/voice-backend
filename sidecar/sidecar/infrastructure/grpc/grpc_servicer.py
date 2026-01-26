@@ -1,21 +1,21 @@
 from __future__ import annotations
 
-import asyncio
 import logging
-from collections.abc import AsyncIterator, Iterable, Iterator
+from collections.abc import AsyncIterator
 from concurrent.futures import ThreadPoolExecutor
 
-from sidecar.stt import pb2 as stt_pb2, pb2_grpc as stt_pb2_grpc
 from sidecar.application.partial_service import PartialTranscriptService
 from sidecar.application.transcription_service import TranscriptionService
+from sidecar.audio.opus import OPUS_SAMPLE_RATE, OpusStreamDecoder
 from sidecar.domain.constants import TARGET_SAMPLE_RATE, samples_to_ms
 from sidecar.domain.entities import SpeechSession
-from sidecar.stt.engine_manager import STTEngineManager
+from sidecar.domain.types import SessionConfig, SpeechStarted, SpeechStopped, Transcript
 from sidecar.infrastructure.codecs.audio_codec import pcm16_to_float32, resample_audio
 from sidecar.infrastructure.grpc.message_mapper import MessageMapper
-from sidecar.audio.opus import OPUS_SAMPLE_RATE, OpusStreamDecoder
+from sidecar.stt import pb2 as stt_pb2
+from sidecar.stt import pb2_grpc as stt_pb2_grpc
+from sidecar.stt.engine_manager import STTEngineManager
 from sidecar.stt.pipeline import STTPipeline, STTPipelineConfig
-from sidecar.domain.types import SessionConfig, SpeechStarted, SpeechStopped, Transcript
 
 logger = logging.getLogger(__name__)
 

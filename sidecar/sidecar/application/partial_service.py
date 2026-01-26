@@ -1,8 +1,7 @@
 from __future__ import annotations
 
 import logging
-from collections.abc import Awaitable
-from typing import Callable
+from collections.abc import Awaitable, Callable
 
 import numpy as np
 from numpy.typing import NDArray

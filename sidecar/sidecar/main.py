@@ -2,23 +2,25 @@ from __future__ import annotations
 
 import asyncio
 import logging
-from concurrent.futures import ThreadPoolExecutor
+import resource
 import signal
 import sys
-import resource
+from concurrent.futures import ThreadPoolExecutor
 
 import grpc
 from grpc import aio as grpc_aio
 
+from sidecar.shared.utils import get_env, start_health_server, token_auth_interceptor
 from sidecar.stt import pb2_grpc as stt_pb2_grpc
-from sidecar.tts import pb2_grpc as tts_pb2_grpc
 from sidecar.stt.engine_manager import EngineConfig, STTEngineManager
 from sidecar.stt.grpc_servicer import TranscriptionServiceServicer
-from sidecar.stt.pipeline import STTPipelineConfig, EOUConfig
-from sidecar.stt.vad import VADConfig, SileroVAD
+from sidecar.stt.pipeline import EOUConfig, STTPipelineConfig
+from sidecar.stt.vad import SileroVAD, VADConfig
+from sidecar.tts import pb2_grpc as tts_pb2_grpc
 from sidecar.tts.grpc_servicer import TextToSpeechServiceServicer
 from sidecar.tts.model_manager import KokoroModelManager, SynthesisConfig, TTSConfig
-from sidecar.shared.utils import get_env, start_health_server, token_auth_interceptor
+from sidecar.tts.qwen3_grpc_servicer import Qwen3TextToSpeechServiceServicer
+from sidecar.tts.qwen3_model_manager import Qwen3ModelManager, Qwen3SynthesisConfig, Qwen3TTSConfig
 
 logging.basicConfig(
     level=logging.INFO,
@@ -65,17 +67,39 @@ pipeline_config = STTPipelineConfig(
 
 engine_manager = STTEngineManager(engine_config)
 
-tts_config = TTSConfig(
-    model_id=get_env("TTS_MODEL_ID", "hexgrad/Kokoro-82M-v1.0-ONNX"),
-    device=get_env("TTS_DEVICE", "cpu"),
-    ttl=get_env("TTS_MODEL_TTL", 300),
-)
+tts_model_id = get_env("TTS_MODEL_ID", "hexgrad/Kokoro-82M-v1.0-ONNX")
+tts_ttl = get_env("TTS_MODEL_TTL", 300)
+tts_speed = get_env("TTS_SPEED", 1.0)
 
-synthesis_config = SynthesisConfig(
-    speed=get_env("TTS_SPEED", 1.0),
-)
+_USE_QWEN3_TTS = "qwen" in tts_model_id.lower()
 
-tts_model_manager = KokoroModelManager(tts_config)
+def _has_torch_cuda() -> bool:
+    try:
+        import torch
+        return torch.cuda.is_available()
+    except Exception:
+        return False
+
+_TORCH_CUDA_AVAILABLE = _has_torch_cuda() if _USE_QWEN3_TTS else False
+_tts_default_device = "cuda" if _USE_QWEN3_TTS and _TORCH_CUDA_AVAILABLE else "cpu"
+tts_device = get_env("TTS_DEVICE", _tts_default_device)
+
+if _USE_QWEN3_TTS:
+    qwen3_tts_config = Qwen3TTSConfig(
+        model_id=tts_model_id,
+        device=tts_device,
+        ttl=tts_ttl,
+    )
+    qwen3_synthesis_config = Qwen3SynthesisConfig(speed=tts_speed)
+    tts_model_manager = Qwen3ModelManager(qwen3_tts_config)
+else:
+    tts_config = TTSConfig(
+        model_id=tts_model_id,
+        device=tts_device,
+        ttl=tts_ttl,
+    )
+    synthesis_config = SynthesisConfig(speed=tts_speed)
+    tts_model_manager = KokoroModelManager(tts_config)
 
 
 def _preload_models() -> None:
@@ -136,10 +160,16 @@ async def serve() -> None:
         TranscriptionServiceServicer(engine_manager, pipeline_config, stt_executor),
         server,
     )
-    tts_pb2_grpc.add_TextToSpeechServiceServicer_to_server(
-        TextToSpeechServiceServicer(tts_model_manager, synthesis_config, tts_executor),
-        server,
-    )
+    if _USE_QWEN3_TTS:
+        tts_pb2_grpc.add_TextToSpeechServiceServicer_to_server(
+            Qwen3TextToSpeechServiceServicer(tts_model_manager, qwen3_synthesis_config, tts_executor),
+            server,
+        )
+    else:
+        tts_pb2_grpc.add_TextToSpeechServiceServicer_to_server(
+            TextToSpeechServiceServicer(tts_model_manager, synthesis_config, tts_executor),
+            server,
+        )
     if tls_cert and tls_key:
         with open(tls_cert, "rb") as f:
             cert = f.read()
@@ -155,8 +185,9 @@ async def serve() -> None:
     logger.info(f"Starting gRPC server on port {port}")
     logger.info(f"STT model: {engine_config.model_id}")
     logger.info(f"STT device: {engine_config.device}")
-    logger.info(f"TTS model: {tts_config.model_id}")
-    logger.info(f"TTS device: {tts_config.device}")
+    logger.info(f"TTS backend: {'Qwen3-TTS' if _USE_QWEN3_TTS else 'Kokoro'}")
+    logger.info(f"TTS model: {tts_model_id}")
+    logger.info(f"TTS device: {tts_device}")
     logger.info(f"VAD threshold: {vad_config.threshold}")
     logger.info(f"EOU threshold: {eou_config.threshold}")
     logger.info(f"gRPC workers: {grpc_workers}, STT workers: {stt_workers}, TTS workers: {tts_workers}")

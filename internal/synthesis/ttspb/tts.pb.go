@@ -29,7 +29,7 @@ type TtsSessionConfig struct {
 	ModelId        string                 `protobuf:"bytes,4,opt,name=model_id,json=modelId,proto3" json:"model_id,omitempty"`
 	Instructions   string                 `protobuf:"bytes,5,opt,name=instructions,proto3" json:"instructions,omitempty"`
 	Language       string                 `protobuf:"bytes,6,opt,name=language,proto3" json:"language,omitempty"`
-	ResponseFormat string                 `protobuf:"bytes,7,opt,name=response_format,json=responseFormat,proto3" json:"response_format,omitempty"` // pcm/opus
+	ResponseFormat string                 `protobuf:"bytes,7,opt,name=response_format,json=responseFormat,proto3" json:"response_format,omitempty"` // pcm, opus, mp3 (streaming) | wav, flac (batch)
 	unknownFields  protoimpl.UnknownFields
 	sizeCache      protoimpl.SizeCache
 }
@@ -261,6 +261,222 @@ func (x *Voice) GetGender() string {
 	return ""
 }
 
+type CreateVoiceRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	VoiceId       string                 `protobuf:"bytes,1,opt,name=voice_id,json=voiceId,proto3" json:"voice_id,omitempty"`
+	AudioData     []byte                 `protobuf:"bytes,2,opt,name=audio_data,json=audioData,proto3" json:"audio_data,omitempty"`
+	Name          string                 `protobuf:"bytes,3,opt,name=name,proto3" json:"name,omitempty"`
+	Language      string                 `protobuf:"bytes,4,opt,name=language,proto3" json:"language,omitempty"`
+	Gender        string                 `protobuf:"bytes,5,opt,name=gender,proto3" json:"gender,omitempty"`
+	ReferenceText string                 `protobuf:"bytes,6,opt,name=reference_text,json=referenceText,proto3" json:"reference_text,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *CreateVoiceRequest) Reset() {
+	*x = CreateVoiceRequest{}
+	mi := &file_proto_tts_proto_msgTypes[4]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *CreateVoiceRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*CreateVoiceRequest) ProtoMessage() {}
+
+func (x *CreateVoiceRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_tts_proto_msgTypes[4]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use CreateVoiceRequest.ProtoReflect.Descriptor instead.
+func (*CreateVoiceRequest) Descriptor() ([]byte, []int) {
+	return file_proto_tts_proto_rawDescGZIP(), []int{4}
+}
+
+func (x *CreateVoiceRequest) GetVoiceId() string {
+	if x != nil {
+		return x.VoiceId
+	}
+	return ""
+}
+
+func (x *CreateVoiceRequest) GetAudioData() []byte {
+	if x != nil {
+		return x.AudioData
+	}
+	return nil
+}
+
+func (x *CreateVoiceRequest) GetName() string {
+	if x != nil {
+		return x.Name
+	}
+	return ""
+}
+
+func (x *CreateVoiceRequest) GetLanguage() string {
+	if x != nil {
+		return x.Language
+	}
+	return ""
+}
+
+func (x *CreateVoiceRequest) GetGender() string {
+	if x != nil {
+		return x.Gender
+	}
+	return ""
+}
+
+func (x *CreateVoiceRequest) GetReferenceText() string {
+	if x != nil {
+		return x.ReferenceText
+	}
+	return ""
+}
+
+type CreateVoiceResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Voice         *Voice                 `protobuf:"bytes,1,opt,name=voice,proto3" json:"voice,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *CreateVoiceResponse) Reset() {
+	*x = CreateVoiceResponse{}
+	mi := &file_proto_tts_proto_msgTypes[5]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *CreateVoiceResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*CreateVoiceResponse) ProtoMessage() {}
+
+func (x *CreateVoiceResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_tts_proto_msgTypes[5]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use CreateVoiceResponse.ProtoReflect.Descriptor instead.
+func (*CreateVoiceResponse) Descriptor() ([]byte, []int) {
+	return file_proto_tts_proto_rawDescGZIP(), []int{5}
+}
+
+func (x *CreateVoiceResponse) GetVoice() *Voice {
+	if x != nil {
+		return x.Voice
+	}
+	return nil
+}
+
+type DeleteVoiceRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	VoiceId       string                 `protobuf:"bytes,1,opt,name=voice_id,json=voiceId,proto3" json:"voice_id,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *DeleteVoiceRequest) Reset() {
+	*x = DeleteVoiceRequest{}
+	mi := &file_proto_tts_proto_msgTypes[6]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *DeleteVoiceRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*DeleteVoiceRequest) ProtoMessage() {}
+
+func (x *DeleteVoiceRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_tts_proto_msgTypes[6]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use DeleteVoiceRequest.ProtoReflect.Descriptor instead.
+func (*DeleteVoiceRequest) Descriptor() ([]byte, []int) {
+	return file_proto_tts_proto_rawDescGZIP(), []int{6}
+}
+
+func (x *DeleteVoiceRequest) GetVoiceId() string {
+	if x != nil {
+		return x.VoiceId
+	}
+	return ""
+}
+
+type DeleteVoiceResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Success       bool                   `protobuf:"varint,1,opt,name=success,proto3" json:"success,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *DeleteVoiceResponse) Reset() {
+	*x = DeleteVoiceResponse{}
+	mi := &file_proto_tts_proto_msgTypes[7]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *DeleteVoiceResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*DeleteVoiceResponse) ProtoMessage() {}
+
+func (x *DeleteVoiceResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_tts_proto_msgTypes[7]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use DeleteVoiceResponse.ProtoReflect.Descriptor instead.
+func (*DeleteVoiceResponse) Descriptor() ([]byte, []int) {
+	return file_proto_tts_proto_rawDescGZIP(), []int{7}
+}
+
+func (x *DeleteVoiceResponse) GetSuccess() bool {
+	if x != nil {
+		return x.Success
+	}
+	return false
+}
+
 type ListModelsRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	unknownFields protoimpl.UnknownFields
@@ -269,7 +485,7 @@ type ListModelsRequest struct {
 
 func (x *ListModelsRequest) Reset() {
 	*x = ListModelsRequest{}
-	mi := &file_proto_tts_proto_msgTypes[4]
+	mi := &file_proto_tts_proto_msgTypes[8]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -281,7 +497,7 @@ func (x *ListModelsRequest) String() string {
 func (*ListModelsRequest) ProtoMessage() {}
 
 func (x *ListModelsRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_tts_proto_msgTypes[4]
+	mi := &file_proto_tts_proto_msgTypes[8]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -294,7 +510,7 @@ func (x *ListModelsRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListModelsRequest.ProtoReflect.Descriptor instead.
 func (*ListModelsRequest) Descriptor() ([]byte, []int) {
-	return file_proto_tts_proto_rawDescGZIP(), []int{4}
+	return file_proto_tts_proto_rawDescGZIP(), []int{8}
 }
 
 type ListModelsResponse struct {
@@ -306,7 +522,7 @@ type ListModelsResponse struct {
 
 func (x *ListModelsResponse) Reset() {
 	*x = ListModelsResponse{}
-	mi := &file_proto_tts_proto_msgTypes[5]
+	mi := &file_proto_tts_proto_msgTypes[9]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -318,7 +534,7 @@ func (x *ListModelsResponse) String() string {
 func (*ListModelsResponse) ProtoMessage() {}
 
 func (x *ListModelsResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_tts_proto_msgTypes[5]
+	mi := &file_proto_tts_proto_msgTypes[9]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -331,7 +547,7 @@ func (x *ListModelsResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListModelsResponse.ProtoReflect.Descriptor instead.
 func (*ListModelsResponse) Descriptor() ([]byte, []int) {
-	return file_proto_tts_proto_rawDescGZIP(), []int{5}
+	return file_proto_tts_proto_rawDescGZIP(), []int{9}
 }
 
 func (x *ListModelsResponse) GetModels() []*TTSModel {
@@ -352,7 +568,7 @@ type TTSModel struct {
 
 func (x *TTSModel) Reset() {
 	*x = TTSModel{}
-	mi := &file_proto_tts_proto_msgTypes[6]
+	mi := &file_proto_tts_proto_msgTypes[10]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -364,7 +580,7 @@ func (x *TTSModel) String() string {
 func (*TTSModel) ProtoMessage() {}
 
 func (x *TTSModel) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_tts_proto_msgTypes[6]
+	mi := &file_proto_tts_proto_msgTypes[10]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -377,7 +593,7 @@ func (x *TTSModel) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use TTSModel.ProtoReflect.Descriptor instead.
 func (*TTSModel) Descriptor() ([]byte, []int) {
-	return file_proto_tts_proto_rawDescGZIP(), []int{6}
+	return file_proto_tts_proto_rawDescGZIP(), []int{10}
 }
 
 func (x *TTSModel) GetId() string {
@@ -410,7 +626,7 @@ type TextChunk struct {
 
 func (x *TextChunk) Reset() {
 	*x = TextChunk{}
-	mi := &file_proto_tts_proto_msgTypes[7]
+	mi := &file_proto_tts_proto_msgTypes[11]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -422,7 +638,7 @@ func (x *TextChunk) String() string {
 func (*TextChunk) ProtoMessage() {}
 
 func (x *TextChunk) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_tts_proto_msgTypes[7]
+	mi := &file_proto_tts_proto_msgTypes[11]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -435,7 +651,7 @@ func (x *TextChunk) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use TextChunk.ProtoReflect.Descriptor instead.
 func (*TextChunk) Descriptor() ([]byte, []int) {
-	return file_proto_tts_proto_rawDescGZIP(), []int{7}
+	return file_proto_tts_proto_rawDescGZIP(), []int{11}
 }
 
 func (x *TextChunk) GetText() string {
@@ -453,7 +669,7 @@ type EndOfText struct {
 
 func (x *EndOfText) Reset() {
 	*x = EndOfText{}
-	mi := &file_proto_tts_proto_msgTypes[8]
+	mi := &file_proto_tts_proto_msgTypes[12]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -465,7 +681,7 @@ func (x *EndOfText) String() string {
 func (*EndOfText) ProtoMessage() {}
 
 func (x *EndOfText) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_tts_proto_msgTypes[8]
+	mi := &file_proto_tts_proto_msgTypes[12]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -478,7 +694,7 @@ func (x *EndOfText) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use EndOfText.ProtoReflect.Descriptor instead.
 func (*EndOfText) Descriptor() ([]byte, []int) {
-	return file_proto_tts_proto_rawDescGZIP(), []int{8}
+	return file_proto_tts_proto_rawDescGZIP(), []int{12}
 }
 
 type TtsClientMessage struct {
@@ -495,7 +711,7 @@ type TtsClientMessage struct {
 
 func (x *TtsClientMessage) Reset() {
 	*x = TtsClientMessage{}
-	mi := &file_proto_tts_proto_msgTypes[9]
+	mi := &file_proto_tts_proto_msgTypes[13]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -507,7 +723,7 @@ func (x *TtsClientMessage) String() string {
 func (*TtsClientMessage) ProtoMessage() {}
 
 func (x *TtsClientMessage) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_tts_proto_msgTypes[9]
+	mi := &file_proto_tts_proto_msgTypes[13]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -520,7 +736,7 @@ func (x *TtsClientMessage) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use TtsClientMessage.ProtoReflect.Descriptor instead.
 func (*TtsClientMessage) Descriptor() ([]byte, []int) {
-	return file_proto_tts_proto_rawDescGZIP(), []int{9}
+	return file_proto_tts_proto_rawDescGZIP(), []int{13}
 }
 
 func (x *TtsClientMessage) GetMsg() isTtsClientMessage_Msg {
@@ -589,7 +805,7 @@ type TtsSessionReady struct {
 
 func (x *TtsSessionReady) Reset() {
 	*x = TtsSessionReady{}
-	mi := &file_proto_tts_proto_msgTypes[10]
+	mi := &file_proto_tts_proto_msgTypes[14]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -601,7 +817,7 @@ func (x *TtsSessionReady) String() string {
 func (*TtsSessionReady) ProtoMessage() {}
 
 func (x *TtsSessionReady) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_tts_proto_msgTypes[10]
+	mi := &file_proto_tts_proto_msgTypes[14]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -614,7 +830,7 @@ func (x *TtsSessionReady) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use TtsSessionReady.ProtoReflect.Descriptor instead.
 func (*TtsSessionReady) Descriptor() ([]byte, []int) {
-	return file_proto_tts_proto_rawDescGZIP(), []int{10}
+	return file_proto_tts_proto_rawDescGZIP(), []int{14}
 }
 
 func (x *TtsSessionReady) GetVoiceId() string {
@@ -644,7 +860,7 @@ type AudioChunk struct {
 
 func (x *AudioChunk) Reset() {
 	*x = AudioChunk{}
-	mi := &file_proto_tts_proto_msgTypes[11]
+	mi := &file_proto_tts_proto_msgTypes[15]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -656,7 +872,7 @@ func (x *AudioChunk) String() string {
 func (*AudioChunk) ProtoMessage() {}
 
 func (x *AudioChunk) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_tts_proto_msgTypes[11]
+	mi := &file_proto_tts_proto_msgTypes[15]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -669,7 +885,7 @@ func (x *AudioChunk) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use AudioChunk.ProtoReflect.Descriptor instead.
 func (*AudioChunk) Descriptor() ([]byte, []int) {
-	return file_proto_tts_proto_rawDescGZIP(), []int{11}
+	return file_proto_tts_proto_rawDescGZIP(), []int{15}
 }
 
 func (x *AudioChunk) GetData() []byte {
@@ -718,7 +934,7 @@ type TtsUsage struct {
 
 func (x *TtsUsage) Reset() {
 	*x = TtsUsage{}
-	mi := &file_proto_tts_proto_msgTypes[12]
+	mi := &file_proto_tts_proto_msgTypes[16]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -730,7 +946,7 @@ func (x *TtsUsage) String() string {
 func (*TtsUsage) ProtoMessage() {}
 
 func (x *TtsUsage) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_tts_proto_msgTypes[12]
+	mi := &file_proto_tts_proto_msgTypes[16]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -743,7 +959,7 @@ func (x *TtsUsage) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use TtsUsage.ProtoReflect.Descriptor instead.
 func (*TtsUsage) Descriptor() ([]byte, []int) {
-	return file_proto_tts_proto_rawDescGZIP(), []int{12}
+	return file_proto_tts_proto_rawDescGZIP(), []int{16}
 }
 
 func (x *TtsUsage) GetAudioMs() uint64 {
@@ -780,7 +996,7 @@ type TtsDone struct {
 
 func (x *TtsDone) Reset() {
 	*x = TtsDone{}
-	mi := &file_proto_tts_proto_msgTypes[13]
+	mi := &file_proto_tts_proto_msgTypes[17]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -792,7 +1008,7 @@ func (x *TtsDone) String() string {
 func (*TtsDone) ProtoMessage() {}
 
 func (x *TtsDone) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_tts_proto_msgTypes[13]
+	mi := &file_proto_tts_proto_msgTypes[17]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -805,7 +1021,7 @@ func (x *TtsDone) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use TtsDone.ProtoReflect.Descriptor instead.
 func (*TtsDone) Descriptor() ([]byte, []int) {
-	return file_proto_tts_proto_rawDescGZIP(), []int{13}
+	return file_proto_tts_proto_rawDescGZIP(), []int{17}
 }
 
 func (x *TtsDone) GetAudioDurationMs() uint64 {
@@ -853,7 +1069,7 @@ type TtsError struct {
 
 func (x *TtsError) Reset() {
 	*x = TtsError{}
-	mi := &file_proto_tts_proto_msgTypes[14]
+	mi := &file_proto_tts_proto_msgTypes[18]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -865,7 +1081,7 @@ func (x *TtsError) String() string {
 func (*TtsError) ProtoMessage() {}
 
 func (x *TtsError) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_tts_proto_msgTypes[14]
+	mi := &file_proto_tts_proto_msgTypes[18]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -878,7 +1094,7 @@ func (x *TtsError) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use TtsError.ProtoReflect.Descriptor instead.
 func (*TtsError) Descriptor() ([]byte, []int) {
-	return file_proto_tts_proto_rawDescGZIP(), []int{14}
+	return file_proto_tts_proto_rawDescGZIP(), []int{18}
 }
 
 func (x *TtsError) GetMessage() string {
@@ -910,7 +1126,7 @@ type TtsServerMessage struct {
 
 func (x *TtsServerMessage) Reset() {
 	*x = TtsServerMessage{}
-	mi := &file_proto_tts_proto_msgTypes[15]
+	mi := &file_proto_tts_proto_msgTypes[19]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -922,7 +1138,7 @@ func (x *TtsServerMessage) String() string {
 func (*TtsServerMessage) ProtoMessage() {}
 
 func (x *TtsServerMessage) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_tts_proto_msgTypes[15]
+	mi := &file_proto_tts_proto_msgTypes[19]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -935,7 +1151,7 @@ func (x *TtsServerMessage) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use TtsServerMessage.ProtoReflect.Descriptor instead.
 func (*TtsServerMessage) Descriptor() ([]byte, []int) {
-	return file_proto_tts_proto_rawDescGZIP(), []int{15}
+	return file_proto_tts_proto_rawDescGZIP(), []int{19}
 }
 
 func (x *TtsServerMessage) GetMsg() isTtsServerMessage_Msg {
@@ -1031,7 +1247,22 @@ const file_proto_tts_proto_rawDesc = "" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x12\n" +
 	"\x04name\x18\x02 \x01(\tR\x04name\x12\x1a\n" +
 	"\blanguage\x18\x03 \x01(\tR\blanguage\x12\x16\n" +
-	"\x06gender\x18\x04 \x01(\tR\x06gender\"\x13\n" +
+	"\x06gender\x18\x04 \x01(\tR\x06gender\"\xbd\x01\n" +
+	"\x12CreateVoiceRequest\x12\x19\n" +
+	"\bvoice_id\x18\x01 \x01(\tR\avoiceId\x12\x1d\n" +
+	"\n" +
+	"audio_data\x18\x02 \x01(\fR\taudioData\x12\x12\n" +
+	"\x04name\x18\x03 \x01(\tR\x04name\x12\x1a\n" +
+	"\blanguage\x18\x04 \x01(\tR\blanguage\x12\x16\n" +
+	"\x06gender\x18\x05 \x01(\tR\x06gender\x12%\n" +
+	"\x0ereference_text\x18\x06 \x01(\tR\rreferenceText\"7\n" +
+	"\x13CreateVoiceResponse\x12 \n" +
+	"\x05voice\x18\x01 \x01(\v2\n" +
+	".tts.VoiceR\x05voice\"/\n" +
+	"\x12DeleteVoiceRequest\x12\x19\n" +
+	"\bvoice_id\x18\x01 \x01(\tR\avoiceId\"/\n" +
+	"\x13DeleteVoiceResponse\x12\x18\n" +
+	"\asuccess\x18\x01 \x01(\bR\asuccess\"\x13\n" +
 	"\x11ListModelsRequest\";\n" +
 	"\x12ListModelsResponse\x12%\n" +
 	"\x06models\x18\x01 \x03(\v2\r.tts.TTSModelR\x06models\"P\n" +
@@ -1083,14 +1314,16 @@ const file_proto_tts_proto_rawDesc = "" +
 	"\x05audio\x18\x02 \x01(\v2\x0f.tts.AudioChunkH\x00R\x05audio\x12\"\n" +
 	"\x04done\x18\x03 \x01(\v2\f.tts.TtsDoneH\x00R\x04done\x12%\n" +
 	"\x05error\x18\x04 \x01(\v2\r.tts.TtsErrorH\x00R\x05errorB\x05\n" +
-	"\x03msg2\xd3\x01\n" +
+	"\x03msg2\xd7\x02\n" +
 	"\x13TextToSpeechService\x12>\n" +
 	"\n" +
 	"Synthesize\x12\x15.tts.TtsClientMessage\x1a\x15.tts.TtsServerMessage(\x010\x01\x12=\n" +
 	"\n" +
 	"ListVoices\x12\x16.tts.ListVoicesRequest\x1a\x17.tts.ListVoicesResponse\x12=\n" +
 	"\n" +
-	"ListModels\x12\x16.tts.ListModelsRequest\x1a\x17.tts.ListModelsResponseB=Z;github.com/eleven-am/voice-backend/internal/synthesis/ttspbb\x06proto3"
+	"ListModels\x12\x16.tts.ListModelsRequest\x1a\x17.tts.ListModelsResponse\x12@\n" +
+	"\vCreateVoice\x12\x17.tts.CreateVoiceRequest\x1a\x18.tts.CreateVoiceResponse\x12@\n" +
+	"\vDeleteVoice\x12\x17.tts.DeleteVoiceRequest\x1a\x18.tts.DeleteVoiceResponseB=Z;github.com/eleven-am/voice-backend/internal/synthesis/ttspbb\x06proto3"
 
 var (
 	file_proto_tts_proto_rawDescOnce sync.Once
@@ -1104,47 +1337,56 @@ func file_proto_tts_proto_rawDescGZIP() []byte {
 	return file_proto_tts_proto_rawDescData
 }
 
-var file_proto_tts_proto_msgTypes = make([]protoimpl.MessageInfo, 16)
+var file_proto_tts_proto_msgTypes = make([]protoimpl.MessageInfo, 20)
 var file_proto_tts_proto_goTypes = []any{
-	(*TtsSessionConfig)(nil),   // 0: tts.TtsSessionConfig
-	(*ListVoicesRequest)(nil),  // 1: tts.ListVoicesRequest
-	(*ListVoicesResponse)(nil), // 2: tts.ListVoicesResponse
-	(*Voice)(nil),              // 3: tts.Voice
-	(*ListModelsRequest)(nil),  // 4: tts.ListModelsRequest
-	(*ListModelsResponse)(nil), // 5: tts.ListModelsResponse
-	(*TTSModel)(nil),           // 6: tts.TTSModel
-	(*TextChunk)(nil),          // 7: tts.TextChunk
-	(*EndOfText)(nil),          // 8: tts.EndOfText
-	(*TtsClientMessage)(nil),   // 9: tts.TtsClientMessage
-	(*TtsSessionReady)(nil),    // 10: tts.TtsSessionReady
-	(*AudioChunk)(nil),         // 11: tts.AudioChunk
-	(*TtsUsage)(nil),           // 12: tts.TtsUsage
-	(*TtsDone)(nil),            // 13: tts.TtsDone
-	(*TtsError)(nil),           // 14: tts.TtsError
-	(*TtsServerMessage)(nil),   // 15: tts.TtsServerMessage
+	(*TtsSessionConfig)(nil),    // 0: tts.TtsSessionConfig
+	(*ListVoicesRequest)(nil),   // 1: tts.ListVoicesRequest
+	(*ListVoicesResponse)(nil),  // 2: tts.ListVoicesResponse
+	(*Voice)(nil),               // 3: tts.Voice
+	(*CreateVoiceRequest)(nil),  // 4: tts.CreateVoiceRequest
+	(*CreateVoiceResponse)(nil), // 5: tts.CreateVoiceResponse
+	(*DeleteVoiceRequest)(nil),  // 6: tts.DeleteVoiceRequest
+	(*DeleteVoiceResponse)(nil), // 7: tts.DeleteVoiceResponse
+	(*ListModelsRequest)(nil),   // 8: tts.ListModelsRequest
+	(*ListModelsResponse)(nil),  // 9: tts.ListModelsResponse
+	(*TTSModel)(nil),            // 10: tts.TTSModel
+	(*TextChunk)(nil),           // 11: tts.TextChunk
+	(*EndOfText)(nil),           // 12: tts.EndOfText
+	(*TtsClientMessage)(nil),    // 13: tts.TtsClientMessage
+	(*TtsSessionReady)(nil),     // 14: tts.TtsSessionReady
+	(*AudioChunk)(nil),          // 15: tts.AudioChunk
+	(*TtsUsage)(nil),            // 16: tts.TtsUsage
+	(*TtsDone)(nil),             // 17: tts.TtsDone
+	(*TtsError)(nil),            // 18: tts.TtsError
+	(*TtsServerMessage)(nil),    // 19: tts.TtsServerMessage
 }
 var file_proto_tts_proto_depIdxs = []int32{
 	3,  // 0: tts.ListVoicesResponse.voices:type_name -> tts.Voice
-	6,  // 1: tts.ListModelsResponse.models:type_name -> tts.TTSModel
-	0,  // 2: tts.TtsClientMessage.config:type_name -> tts.TtsSessionConfig
-	7,  // 3: tts.TtsClientMessage.text:type_name -> tts.TextChunk
-	8,  // 4: tts.TtsClientMessage.end:type_name -> tts.EndOfText
-	12, // 5: tts.TtsDone.usage:type_name -> tts.TtsUsage
-	10, // 6: tts.TtsServerMessage.ready:type_name -> tts.TtsSessionReady
-	11, // 7: tts.TtsServerMessage.audio:type_name -> tts.AudioChunk
-	13, // 8: tts.TtsServerMessage.done:type_name -> tts.TtsDone
-	14, // 9: tts.TtsServerMessage.error:type_name -> tts.TtsError
-	9,  // 10: tts.TextToSpeechService.Synthesize:input_type -> tts.TtsClientMessage
-	1,  // 11: tts.TextToSpeechService.ListVoices:input_type -> tts.ListVoicesRequest
-	4,  // 12: tts.TextToSpeechService.ListModels:input_type -> tts.ListModelsRequest
-	15, // 13: tts.TextToSpeechService.Synthesize:output_type -> tts.TtsServerMessage
-	2,  // 14: tts.TextToSpeechService.ListVoices:output_type -> tts.ListVoicesResponse
-	5,  // 15: tts.TextToSpeechService.ListModels:output_type -> tts.ListModelsResponse
-	13, // [13:16] is the sub-list for method output_type
-	10, // [10:13] is the sub-list for method input_type
-	10, // [10:10] is the sub-list for extension type_name
-	10, // [10:10] is the sub-list for extension extendee
-	0,  // [0:10] is the sub-list for field type_name
+	3,  // 1: tts.CreateVoiceResponse.voice:type_name -> tts.Voice
+	10, // 2: tts.ListModelsResponse.models:type_name -> tts.TTSModel
+	0,  // 3: tts.TtsClientMessage.config:type_name -> tts.TtsSessionConfig
+	11, // 4: tts.TtsClientMessage.text:type_name -> tts.TextChunk
+	12, // 5: tts.TtsClientMessage.end:type_name -> tts.EndOfText
+	16, // 6: tts.TtsDone.usage:type_name -> tts.TtsUsage
+	14, // 7: tts.TtsServerMessage.ready:type_name -> tts.TtsSessionReady
+	15, // 8: tts.TtsServerMessage.audio:type_name -> tts.AudioChunk
+	17, // 9: tts.TtsServerMessage.done:type_name -> tts.TtsDone
+	18, // 10: tts.TtsServerMessage.error:type_name -> tts.TtsError
+	13, // 11: tts.TextToSpeechService.Synthesize:input_type -> tts.TtsClientMessage
+	1,  // 12: tts.TextToSpeechService.ListVoices:input_type -> tts.ListVoicesRequest
+	8,  // 13: tts.TextToSpeechService.ListModels:input_type -> tts.ListModelsRequest
+	4,  // 14: tts.TextToSpeechService.CreateVoice:input_type -> tts.CreateVoiceRequest
+	6,  // 15: tts.TextToSpeechService.DeleteVoice:input_type -> tts.DeleteVoiceRequest
+	19, // 16: tts.TextToSpeechService.Synthesize:output_type -> tts.TtsServerMessage
+	2,  // 17: tts.TextToSpeechService.ListVoices:output_type -> tts.ListVoicesResponse
+	9,  // 18: tts.TextToSpeechService.ListModels:output_type -> tts.ListModelsResponse
+	5,  // 19: tts.TextToSpeechService.CreateVoice:output_type -> tts.CreateVoiceResponse
+	7,  // 20: tts.TextToSpeechService.DeleteVoice:output_type -> tts.DeleteVoiceResponse
+	16, // [16:21] is the sub-list for method output_type
+	11, // [11:16] is the sub-list for method input_type
+	11, // [11:11] is the sub-list for extension type_name
+	11, // [11:11] is the sub-list for extension extendee
+	0,  // [0:11] is the sub-list for field type_name
 }
 
 func init() { file_proto_tts_proto_init() }
@@ -1152,12 +1394,12 @@ func file_proto_tts_proto_init() {
 	if File_proto_tts_proto != nil {
 		return
 	}
-	file_proto_tts_proto_msgTypes[9].OneofWrappers = []any{
+	file_proto_tts_proto_msgTypes[13].OneofWrappers = []any{
 		(*TtsClientMessage_Config)(nil),
 		(*TtsClientMessage_Text)(nil),
 		(*TtsClientMessage_End)(nil),
 	}
-	file_proto_tts_proto_msgTypes[15].OneofWrappers = []any{
+	file_proto_tts_proto_msgTypes[19].OneofWrappers = []any{
 		(*TtsServerMessage_Ready)(nil),
 		(*TtsServerMessage_Audio)(nil),
 		(*TtsServerMessage_Done)(nil),
@@ -1169,7 +1411,7 @@ func file_proto_tts_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_proto_tts_proto_rawDesc), len(file_proto_tts_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   16,
+			NumMessages:   20,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

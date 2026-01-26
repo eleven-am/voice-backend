@@ -34,6 +34,10 @@ RUN --mount=type=cache,target=/root/.cache/uv \
     mkdir -p $HOME/.cache/torch/hub && \
     chown -R ubuntu:ubuntu $HOME
 
+RUN --mount=type=cache,target=/root/.cache/uv \
+    uv pip install --python .venv/bin/python --reinstall --pre torch torchaudio \
+    --index-url https://download.pytorch.org/whl/nightly/cu128
+
 USER ubuntu
 
 ENV PATH="$HOME/sidecar/.venv/bin:$PATH" \

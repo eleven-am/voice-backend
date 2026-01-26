@@ -5,11 +5,10 @@ from unittest.mock import MagicMock, patch
 import numpy as np
 import pytest
 
-from sidecar.domain.constants import TARGET_SAMPLE_RATE
 from sidecar.domain.exceptions import TranscriptionError
 from sidecar.domain.transcript_processor import deduplicate_words, merge_transcripts
-from sidecar.infrastructure.codecs.audio_codec import pcm16_to_float32, resample_audio
 from sidecar.domain.types import Transcript
+from sidecar.infrastructure.codecs.audio_codec import pcm16_to_float32, resample_audio
 
 
 class TestPcm16ToFloat32:

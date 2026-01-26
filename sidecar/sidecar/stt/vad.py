@@ -5,7 +5,6 @@ from dataclasses import dataclass, field
 
 import numpy as np
 import torch
-
 from numpy.typing import NDArray
 
 from sidecar.domain.types import SpeechStarted, SpeechStopped

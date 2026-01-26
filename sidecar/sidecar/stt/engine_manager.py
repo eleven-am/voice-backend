@@ -9,8 +9,8 @@ from collections.abc import Callable
 from dataclasses import dataclass, field
 from typing import Generic, TypeVar
 
-from sidecar.stt.engines.protocol import STTEngine, STTEngineLifecycle
 from sidecar.shared.utils import is_oom_error
+from sidecar.stt.engines.protocol import STTEngine, STTEngineLifecycle
 
 logger = logging.getLogger(__name__)
 

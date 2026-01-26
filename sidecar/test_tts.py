@@ -3,7 +3,8 @@ import grpc
 import numpy as np
 import sounddevice as sd
 
-from sidecar.tts import pb2 as tts_pb2, pb2_grpc as tts_pb2_grpc
+from sidecar.tts import pb2 as tts_pb2
+from sidecar.tts import pb2_grpc as tts_pb2_grpc
 
 SIDECAR_ADDR = "localhost:50051"
 SAMPLE_RATE = 24000

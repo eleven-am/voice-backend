@@ -6,22 +6,24 @@ import time
 from collections.abc import AsyncIterator
 from concurrent.futures import ThreadPoolExecutor
 
+import grpc
+
 from sidecar.tts import pb2 as tts_pb2
 from sidecar.tts import pb2_grpc as tts_pb2_grpc
 from sidecar.tts.encoding import encode_audio_async
-from sidecar.tts.model_manager import KOKORO_VOICES, KokoroModelManager, SynthesisConfig
 from sidecar.tts.mp3_encoder import StreamingMP3Encoder, has_native_mp3
 from sidecar.tts.opus_encoder import StreamingOpusEncoder, has_native_opus
-from sidecar.tts.synthesis import SAMPLE_RATE, SynthesisError, Synthesizer, float32_to_pcm16
+from sidecar.tts.qwen3_model_manager import SAMPLE_RATE, Qwen3ModelManager, Qwen3SynthesisConfig
+from sidecar.tts.synthesis import Qwen3Synthesizer, SynthesisError, float32_to_pcm16
 
 logger = logging.getLogger(__name__)
 
 
-class TextToSpeechServiceServicer(tts_pb2_grpc.TextToSpeechServiceServicer):
+class Qwen3TextToSpeechServiceServicer(tts_pb2_grpc.TextToSpeechServiceServicer):
     def __init__(
         self,
-        model_manager: KokoroModelManager,
-        config: SynthesisConfig,
+        model_manager: Qwen3ModelManager,
+        config: Qwen3SynthesisConfig,
         executor: ThreadPoolExecutor,
     ) -> None:
         self.model_manager = model_manager
@@ -33,7 +35,7 @@ class TextToSpeechServiceServicer(tts_pb2_grpc.TextToSpeechServiceServicer):
     ) -> tuple[tts_pb2.TtsSessionConfig | None, list[str], str, str, list[tts_pb2.TtsServerMessage]]:
         session_config: tts_pb2.TtsSessionConfig | None = None
         text_chunks: list[str] = []
-        voice_id = "af_heart"
+        voice_id = ""
         response_format = "pcm"
         errors: list[tts_pb2.TtsServerMessage] = []
 
@@ -48,11 +50,11 @@ class TextToSpeechServiceServicer(tts_pb2_grpc.TextToSpeechServiceServicer):
                     continue
 
                 session_config = client_msg.config
-                voice_id = session_config.voice_id or "af_heart"
+                voice_id = session_config.voice_id
                 if session_config.response_format:
                     response_format = session_config.response_format.lower()
 
-                logger.info(f"TTS session configured: voice={voice_id}")
+                logger.info(f"Qwen3 TTS session configured: voice={voice_id}")
                 continue
 
             if msg_type == "text":
@@ -89,7 +91,7 @@ class TextToSpeechServiceServicer(tts_pb2_grpc.TextToSpeechServiceServicer):
         processing_ms = int((time.perf_counter() - start_time) * 1000)
         audio_ms = int(audio_samples * 1000 / SAMPLE_RATE)
 
-        logger.info(f"TTS done: {audio_ms}ms audio, {processing_ms}ms processing")
+        logger.info(f"Qwen3 TTS done: {audio_ms}ms audio, {processing_ms}ms processing")
 
         return tts_pb2.TtsServerMessage(
             done=tts_pb2.TtsDone(
@@ -125,6 +127,21 @@ class TextToSpeechServiceServicer(tts_pb2_grpc.TextToSpeechServiceServicer):
             )
             return
 
+        if not voice_id:
+            yield tts_pb2.TtsServerMessage(
+                error=tts_pb2.TtsError(message="Voice ID is required. Create a voice first using CreateVoice.", code=8)
+            )
+            return
+
+        if self.model_manager.get_voice(voice_id) is None:
+            yield tts_pb2.TtsServerMessage(
+                error=tts_pb2.TtsError(
+                    message=f"Voice '{voice_id}' not found. Create it first using CreateVoice.",
+                    code=8
+                )
+            )
+            return
+
         full_text = " ".join(text_chunks).strip()
         if not full_text:
             yield tts_pb2.TtsServerMessage(
@@ -143,14 +160,13 @@ class TextToSpeechServiceServicer(tts_pb2_grpc.TextToSpeechServiceServicer):
             return
 
         speed = session_config.speed if session_config.speed > 0 else self.config.speed
-        synth_config = SynthesisConfig(speed=speed)
+        synth_config = Qwen3SynthesisConfig(speed=speed)
 
-        synthesizer = Synthesizer(self.model_manager, synth_config)
+        synthesizer = Qwen3Synthesizer(self.model_manager, synth_config)
         stop_event = asyncio.Event()
 
         start_time = time.perf_counter()
         audio_samples = 0
-        chunk_count = 0
         buffer = bytearray()
         stream_pcm = response_format == "pcm"
         stream_opus = response_format == "opus"
@@ -183,7 +199,6 @@ class TextToSpeechServiceServicer(tts_pb2_grpc.TextToSpeechServiceServicer):
             ):
                 pcm16 = float32_to_pcm16(audio_chunk)
                 audio_samples += len(audio_chunk)
-                chunk_count += 1
 
                 if stream_pcm:
                     yield self._create_audio_chunk(pcm16, "pcm", audio_samples, full_text)
@@ -199,7 +214,7 @@ class TextToSpeechServiceServicer(tts_pb2_grpc.TextToSpeechServiceServicer):
                     buffer.extend(pcm16)
 
         except SynthesisError as e:
-            logger.error(f"Synthesis error: {e}")
+            logger.error(f"Qwen3 synthesis error: {e}")
             if opus_encoder is not None:
                 opus_encoder.close()
             if mp3_encoder is not None:
@@ -210,7 +225,7 @@ class TextToSpeechServiceServicer(tts_pb2_grpc.TextToSpeechServiceServicer):
             return
 
         except Exception as e:
-            logger.exception("Unexpected TTS failure")
+            logger.exception("Unexpected Qwen3 TTS failure")
             if opus_encoder is not None:
                 opus_encoder.close()
             if mp3_encoder is not None:
@@ -243,21 +258,77 @@ class TextToSpeechServiceServicer(tts_pb2_grpc.TextToSpeechServiceServicer):
 
     def ListVoices(self, request, context):
         voices = []
-        for voice_id, lang, gender in KOKORO_VOICES:
-            voices.append(tts_pb2.Voice(
-                id=voice_id,
-                name=voice_id.split("_")[1].title(),
-                language=lang,
-                gender=gender,
-            ))
+        for voice_id in self.model_manager.list_voices():
+            voice = self.model_manager.get_voice(voice_id)
+            if voice:
+                voices.append(tts_pb2.Voice(
+                    id=voice.voice_id,
+                    name=voice.name,
+                    language=voice.language,
+                    gender=voice.gender,
+                ))
         return tts_pb2.ListVoicesResponse(voices=voices)
 
     def ListModels(self, request, context):
         models = [
             tts_pb2.TTSModel(
                 id=self.model_manager.config.model_id,
-                name="Kokoro",
-                description="Kokoro TTS model",
+                name="Qwen3-TTS",
+                description="Qwen3 TTS model with voice cloning support",
             ),
         ]
         return tts_pb2.ListModelsResponse(models=models)
+
+    def CreateVoice(self, request, context):
+        if not request.voice_id:
+            context.set_code(grpc.StatusCode.INVALID_ARGUMENT)
+            context.set_details("voice_id is required")
+            return tts_pb2.CreateVoiceResponse()
+
+        if not request.audio_data:
+            context.set_code(grpc.StatusCode.INVALID_ARGUMENT)
+            context.set_details("audio_data is required")
+            return tts_pb2.CreateVoiceResponse()
+
+        if not request.reference_text:
+            context.set_code(grpc.StatusCode.INVALID_ARGUMENT)
+            context.set_details("reference_text is required for voice cloning")
+            return tts_pb2.CreateVoiceResponse()
+
+        try:
+            voice = self.model_manager.create_voice(
+                voice_id=request.voice_id,
+                audio_data=request.audio_data,
+                name=request.name or request.voice_id,
+                language=request.language or "English",
+                gender=request.gender or "neutral",
+                ref_text=request.reference_text,
+            )
+
+            return tts_pb2.CreateVoiceResponse(
+                voice=tts_pb2.Voice(
+                    id=voice.voice_id,
+                    name=voice.name,
+                    language=voice.language,
+                    gender=voice.gender,
+                )
+            )
+        except Exception as e:
+            logger.exception("Failed to create voice")
+            context.set_code(grpc.StatusCode.INTERNAL)
+            context.set_details(f"Failed to create voice: {e}")
+            return tts_pb2.CreateVoiceResponse()
+
+    def DeleteVoice(self, request, context):
+        if not request.voice_id:
+            context.set_code(grpc.StatusCode.INVALID_ARGUMENT)
+            context.set_details("voice_id is required")
+            return tts_pb2.DeleteVoiceResponse(success=False)
+
+        success = self.model_manager.delete_voice(request.voice_id)
+
+        if not success:
+            context.set_code(grpc.StatusCode.NOT_FOUND)
+            context.set_details(f"Voice '{request.voice_id}' not found")
+
+        return tts_pb2.DeleteVoiceResponse(success=success)

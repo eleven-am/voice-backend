@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-import gc
-import threading
 import time
 from unittest.mock import MagicMock, patch
 

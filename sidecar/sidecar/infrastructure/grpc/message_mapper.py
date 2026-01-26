@@ -2,10 +2,10 @@ from __future__ import annotations
 
 import logging
 
-from sidecar.stt import pb2 as stt_pb2
 from sidecar.domain.constants import TARGET_SAMPLE_RATE
 from sidecar.domain.exceptions import TranscriptionError
 from sidecar.domain.types import SessionConfig, Transcript
+from sidecar.stt import pb2 as stt_pb2
 
 logger = logging.getLogger(__name__)
 

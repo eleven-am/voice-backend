@@ -10,9 +10,9 @@ from numpy.typing import NDArray
 from sidecar.audio.preprocessing import preprocess_audio
 from sidecar.domain.exceptions import TranscriptionError
 from sidecar.domain.transcript_processor import merge_transcripts
-from sidecar.stt.engine_manager import MAX_OOM_RETRIES, STTEngineManager
 from sidecar.domain.types import Transcript
 from sidecar.shared.utils import is_oom_error
+from sidecar.stt.engine_manager import MAX_OOM_RETRIES, STTEngineManager
 
 logger = logging.getLogger(__name__)
 
