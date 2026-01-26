@@ -37,11 +37,22 @@ override-dependencies = [
     "numpy>=1.26.0,<2.4",
     "ml-dtypes>=0.3.0",
     "pandas>=2.2.0",
+    "torch>=2.7.0",
+    "torchaudio>=2.7.0",
 ]
 
 [[tool.uv.index]]
 name = "pypi"
 url = "https://pypi.org/simple"
+
+[[tool.uv.index]]
+name = "pytorch-nightly"
+url = "https://download.pytorch.org/whl/nightly/cu128"
+explicit = true
+
+[tool.uv.sources]
+torch = { index = "pytorch-nightly" }
+torchaudio = { index = "pytorch-nightly" }
 
 [tool.hatch.build.targets.wheel]
 packages = ["sidecar"]
